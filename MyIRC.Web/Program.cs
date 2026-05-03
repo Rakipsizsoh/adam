@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MyIRC.Application.Interfaces.Repositories;
 using MyIRC.Application.Interfaces.Security;
 using MyIRC.Application.Interfaces.Stores;
@@ -16,7 +16,6 @@ namespace MyIRC.Web
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Railway için
             var port = Environment.GetEnvironmentVariable("PORT");
             if (!string.IsNullOrWhiteSpace(port))
             {
@@ -28,8 +27,8 @@ namespace MyIRC.Web
             builder.Services.AddSignalR();
 
             var connectionString =
-    Environment.GetEnvironmentVariable("MYSQLCONNSTR_DefaultConnection")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+                Environment.GetEnvironmentVariable("MYSQLCONNSTR_DefaultConnection")
+                ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseMySql(
@@ -49,6 +48,12 @@ namespace MyIRC.Web
             builder.Services.AddScoped<MyIRC.Application.Services.ChannelModes.ChannelModeService>();
 
             var app = builder.Build();
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.Database.Migrate();
+            }
 
             if (!app.Environment.IsDevelopment())
             {
