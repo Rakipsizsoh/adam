@@ -1,0 +1,112 @@
+﻿@{
+    Layout = null;
+}
+
+<!doctype html>
+<html lang="tr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sohbete Giriş</title>
+
+    <style>
+        *{
+        margin:0;
+        padding:0;
+        box-sizing:border-box;
+        font-family:Arial,sans-serif;
+        }
+
+        body{
+        height:100vh;
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        background:linear-gradient(135deg,#1e3c72,#2a5298);
+        }
+
+        .login-card{
+        width:350px;
+        padding:30px;
+        border-radius:15px;
+        background:rgba(255,255,255,0.08);
+        backdrop-filter:blur(10px);
+        box-shadow:0 10px 25px rgba(0,0,0,0.3);
+        color:#fff;
+        }
+
+        .login-card h2{
+        text-align:center;
+        margin-bottom:20px;
+        }
+
+        .login-card input{
+        width:100%;
+        padding:10px;
+        margin-bottom:15px;
+        border:none;
+        border-radius:8px;
+        outline:none;
+        }
+
+        .login-card button{
+        width:100%;
+        padding:10px;
+        border:none;
+        border-radius:8px;
+        cursor:pointer;
+        font-weight:bold;
+        background:linear-gradient(90deg,#ff416c,#ff4b2b);
+        color:white;
+        transition:0.3s;
+        }
+
+        .login-card button:hover{
+        opacity:0.9;
+        }
+
+        .info-text{
+        font-size:12px;
+        text-align:center;
+        margin-top:10px;
+        opacity:0.8;
+        }
+
+        .error{
+        color:#ffcccc;
+        font-size:13px;
+        text-align:center;
+        margin-top:10px;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="login-card">
+
+        <h2>Sohbete Giriş</h2>
+
+        <!-- Giriş formu -->
+        <form method="post" action="/sohbet">
+
+            <input type="text" name="nick" placeholder="Kullanıcı Adınız" required>
+
+            <input type="password" name="password" placeholder="Şifre (opsiyonel)">
+
+            <button type="submit">Sohbete Başla</button>
+
+        </form>
+
+        <div class="info-text">
+            Şifreniz yoksa boş bırakabilirsiniz.
+        </div>
+
+        <div class="error" id="errorMsg"></div>
+
+    </div>
+
+</body>
+</html>
