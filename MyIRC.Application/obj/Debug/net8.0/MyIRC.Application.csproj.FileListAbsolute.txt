@@ -1,0 +1,15 @@
+C:\Projects\MyIRC\MyIRC.Application\bin\Debug\net8.0\MyIRC.Application.deps.json
+C:\Projects\MyIRC\MyIRC.Application\bin\Debug\net8.0\MyIRC.Application.dll
+C:\Projects\MyIRC\MyIRC.Application\bin\Debug\net8.0\MyIRC.Application.pdb
+C:\Projects\MyIRC\MyIRC.Application\bin\Debug\net8.0\MyIRC.Domain.dll
+C:\Projects\MyIRC\MyIRC.Application\bin\Debug\net8.0\MyIRC.Domain.pdb
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.csproj.AssemblyReference.cache
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.AssemblyInfoInputs.cache
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.AssemblyInfo.cs
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.csproj.CoreCompileInputs.cache
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Ap.AD1ECA7C.Up2Date
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.dll
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\refint\MyIRC.Application.dll
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\MyIRC.Application.pdb
+C:\Projects\MyIRC\MyIRC.Application\obj\Debug\net8.0\ref\MyIRC.Application.dll

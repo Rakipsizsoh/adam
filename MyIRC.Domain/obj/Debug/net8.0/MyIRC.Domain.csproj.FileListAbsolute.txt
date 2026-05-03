@@ -1,0 +1,11 @@
+C:\Projects\MyIRC\MyIRC.Domain\bin\Debug\net8.0\MyIRC.Domain.deps.json
+C:\Projects\MyIRC\MyIRC.Domain\bin\Debug\net8.0\MyIRC.Domain.dll
+C:\Projects\MyIRC\MyIRC.Domain\bin\Debug\net8.0\MyIRC.Domain.pdb
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\MyIRC.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\MyIRC.Domain.AssemblyInfoInputs.cache
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\MyIRC.Domain.AssemblyInfo.cs
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\MyIRC.Domain.csproj.CoreCompileInputs.cache
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\MyIRC.Domain.dll
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\refint\MyIRC.Domain.dll
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\MyIRC.Domain.pdb
+C:\Projects\MyIRC\MyIRC.Domain\obj\Debug\net8.0\ref\MyIRC.Domain.dll

@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyIRC.Domain\MyIRC.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Interfaces\ChanServ\" />
+    <Folder Include="Interfaces\MemoServ\" />
+    <Folder Include="Interfaces\HostServ\" />
+    <Folder Include="Interfaces\BotServ\" />
+    <Folder Include="Interfaces\Irc\" />
+    <Folder Include="Interfaces\GameServ\" />
+    <Folder Include="Interfaces\RadioServ\" />
+    <Folder Include="Interfaces\NickServ\" />
+  </ItemGroup>
+
+</Project>

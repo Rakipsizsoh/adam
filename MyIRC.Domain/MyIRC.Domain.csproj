@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Entities\Channels\" />
+    <Folder Include="Entities\ChanServ\" />
+    <Folder Include="Entities\MemoServ\" />
+    <Folder Include="Entities\BotServ\" />
+    <Folder Include="Entities\HostServ\" />
+    <Folder Include="Entities\GameServ\" />
+    <Folder Include="Entities\RadioServ\" />
+    <Folder Include="Entities\OperServ\" />
+    <Folder Include="Entities\NickServ\" />
+    <Folder Include="Constants\" />
+    <Folder Include="ValueObjects\" />
+  </ItemGroup>
+
+</Project>
