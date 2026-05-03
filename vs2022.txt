@@ -1,0 +1,286 @@
+Folder PATH listing
+Volume serial number is AAA1-891E
+C:.
+|   MyIRC.sln
+|   vs2022.txt
+|   
++---MyIRC.Application
+|   |   MyIRC.Application.csproj
+|   |   
+|   +---bin
+|   |   \---Debug
+|   |       \---net8.0
+|   |               MyIRC.Application.deps.json
+|   |               MyIRC.Application.dll
+|   |               MyIRC.Application.pdb
+|   |               MyIRC.Domain.dll
+|   |               MyIRC.Domain.pdb
+|   |               
+|   +---obj
+|   |   |   MyIRC.Application.csproj.nuget.dgspec.json
+|   |   |   MyIRC.Application.csproj.nuget.g.props
+|   |   |   MyIRC.Application.csproj.nuget.g.targets
+|   |   |   project.assets.json
+|   |   |   project.nuget.cache
+|   |   |   
+|   |   \---Debug
+|   |       \---net8.0
+|   |           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|   |           |   MyIRC.Ap.AD1ECA7C.Up2Date
+|   |           |   MyIRC.Application.AssemblyInfo.cs
+|   |           |   MyIRC.Application.AssemblyInfoInputs.cache
+|   |           |   MyIRC.Application.assets.cache
+|   |           |   MyIRC.Application.csproj.AssemblyReference.cache
+|   |           |   MyIRC.Application.csproj.BuildWithSkipAnalyzers
+|   |           |   MyIRC.Application.csproj.CoreCompileInputs.cache
+|   |           |   MyIRC.Application.csproj.FileListAbsolute.txt
+|   |           |   MyIRC.Application.dll
+|   |           |   MyIRC.Application.GeneratedMSBuildEditorConfig.editorconfig
+|   |           |   MyIRC.Application.GlobalUsings.g.cs
+|   |           |   MyIRC.Application.pdb
+|   |           |   
+|   |           +---ref
+|   |           |       MyIRC.Application.dll
+|   |           |       
+|   |           \---refint
+|   |                   MyIRC.Application.dll
+|   |                   
+|   \---Services
+|           ChannelService.cs
+|           
++---MyIRC.Domain
+|   |   MyIRC.Domain.csproj
+|   |   
+|   +---bin
+|   |   \---Debug
+|   |       \---net8.0
+|   |               MyIRC.Domain.deps.json
+|   |               MyIRC.Domain.dll
+|   |               MyIRC.Domain.pdb
+|   |               
+|   +---Entities
+|   |       OnlineUser.cs
+|   |       
+|   \---obj
+|       |   MyIRC.Domain.csproj.nuget.dgspec.json
+|       |   MyIRC.Domain.csproj.nuget.g.props
+|       |   MyIRC.Domain.csproj.nuget.g.targets
+|       |   project.assets.json
+|       |   project.nuget.cache
+|       |   
+|       \---Debug
+|           \---net8.0
+|               |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|               |   MyIRC.Domain.AssemblyInfo.cs
+|               |   MyIRC.Domain.AssemblyInfoInputs.cache
+|               |   MyIRC.Domain.assets.cache
+|               |   MyIRC.Domain.csproj.CoreCompileInputs.cache
+|               |   MyIRC.Domain.csproj.FileListAbsolute.txt
+|               |   MyIRC.Domain.dll
+|               |   MyIRC.Domain.GeneratedMSBuildEditorConfig.editorconfig
+|               |   MyIRC.Domain.GlobalUsings.g.cs
+|               |   MyIRC.Domain.pdb
+|               |   
+|               +---ref
+|               |       MyIRC.Domain.dll
+|               |       
+|               \---refint
+|                       MyIRC.Domain.dll
+|                       
+\---MyIRC.Web
+    |   appsettings.Development.json
+    |   appsettings.json
+    |   MyIRC.Web.csproj
+    |   MyIRC.Web.csproj.user
+    |   Program.cs
+    |   
+    +---bin
+    |   \---Debug
+    |       \---net8.0
+    |               appsettings.Development.json
+    |               appsettings.json
+    |               MyIRC.Application.dll
+    |               MyIRC.Application.pdb
+    |               MyIRC.Domain.dll
+    |               MyIRC.Domain.pdb
+    |               MyIRC.Web.deps.json
+    |               MyIRC.Web.dll
+    |               MyIRC.Web.exe
+    |               MyIRC.Web.pdb
+    |               MyIRC.Web.runtimeconfig.json
+    |               MyIRC.Web.staticwebassets.endpoints.json
+    |               MyIRC.Web.staticwebassets.runtime.json
+    |               
+    +---Controllers
+    |       HomeController.cs
+    |       
+    +---Hubs
+    |       ChatHub.cs
+    |       
+    +---Models
+    |       ErrorViewModel.cs
+    |       
+    +---obj
+    |   |   MyIRC.Web.csproj.nuget.dgspec.json
+    |   |   MyIRC.Web.csproj.nuget.g.props
+    |   |   MyIRC.Web.csproj.nuget.g.targets
+    |   |   project.assets.json
+    |   |   project.nuget.cache
+    |   |   
+    |   \---Debug
+    |       \---net8.0
+    |           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+    |           |   ApiEndpoints.json
+    |           |   apphost.exe
+    |           |   MyIRC.Web.AssemblyInfo.cs
+    |           |   MyIRC.Web.AssemblyInfoInputs.cache
+    |           |   MyIRC.Web.assets.cache
+    |           |   MyIRC.Web.csproj.AssemblyReference.cache
+    |           |   MyIRC.Web.csproj.BuildWithSkipAnalyzers
+    |           |   MyIRC.Web.csproj.CoreCompileInputs.cache
+    |           |   MyIRC.Web.csproj.FileListAbsolute.txt
+    |           |   MyIRC.Web.csproj.Up2Date
+    |           |   MyIRC.Web.dll
+    |           |   MyIRC.Web.GeneratedMSBuildEditorConfig.editorconfig
+    |           |   MyIRC.Web.genruntimeconfig.cache
+    |           |   MyIRC.Web.GlobalUsings.g.cs
+    |           |   MyIRC.Web.MvcApplicationPartsAssemblyInfo.cache
+    |           |   MyIRC.Web.pdb
+    |           |   MyIRC.Web.RazorAssemblyInfo.cache
+    |           |   MyIRC.Web.RazorAssemblyInfo.cs
+    |           |   rjimswa.dswa.cache.json
+    |           |   rjsmcshtml.dswa.cache.json
+    |           |   rjsmrazor.dswa.cache.json
+    |           |   rpswa.dswa.cache.json
+    |           |   staticwebassets.build.endpoints.json
+    |           |   staticwebassets.build.json
+    |           |   staticwebassets.build.json.cache
+    |           |   staticwebassets.development.json
+    |           |   staticwebassets.references.upToDateCheck.txt
+    |           |   staticwebassets.removed.txt
+    |           |   staticwebassets.upToDateCheck.txt
+    |           |   
+    |           +---ref
+    |           |       MyIRC.Web.dll
+    |           |       
+    |           +---refint
+    |           |       MyIRC.Web.dll
+    |           |       
+    |           +---scopedcss
+    |           |   +---bundle
+    |           |   |       MyIRC.Web.styles.css
+    |           |   |       
+    |           |   +---projectbundle
+    |           |   |       MyIRC.Web.bundle.scp.css
+    |           |   |       
+    |           |   \---Views
+    |           |       \---Shared
+    |           |               _Layout.cshtml.rz.scp.css
+    |           |               
+    |           \---staticwebassets
+    +---Properties
+    |       launchSettings.json
+    |       
+    +---Views
+    |   |   _ViewImports.cshtml
+    |   |   _ViewStart.cshtml
+    |   |   
+    |   +---Home
+    |   |       Index.cshtml
+    |   |       Privacy.cshtml
+    |   |       Sohbet.cshtml
+    |   |       
+    |   \---Shared
+    |           Error.cshtml
+    |           _Layout.cshtml
+    |           _Layout.cshtml.css
+    |           _ValidationScriptsPartial.cshtml
+    |           
+    \---wwwroot
+        |   favicon.ico
+        |   
+        +---css
+        |       site.css
+        |       style.css
+        |       
+        +---js
+        |       site.js
+        |       
+        +---lib
+        |   +---bootstrap
+        |   |   |   LICENSE
+        |   |   |   
+        |   |   \---dist
+        |   |       +---css
+        |   |       |       bootstrap-grid.css
+        |   |       |       bootstrap-grid.css.map
+        |   |       |       bootstrap-grid.min.css
+        |   |       |       bootstrap-grid.min.css.map
+        |   |       |       bootstrap-grid.rtl.css
+        |   |       |       bootstrap-grid.rtl.css.map
+        |   |       |       bootstrap-grid.rtl.min.css
+        |   |       |       bootstrap-grid.rtl.min.css.map
+        |   |       |       bootstrap-reboot.css
+        |   |       |       bootstrap-reboot.css.map
+        |   |       |       bootstrap-reboot.min.css
+        |   |       |       bootstrap-reboot.min.css.map
+        |   |       |       bootstrap-reboot.rtl.css
+        |   |       |       bootstrap-reboot.rtl.css.map
+        |   |       |       bootstrap-reboot.rtl.min.css
+        |   |       |       bootstrap-reboot.rtl.min.css.map
+        |   |       |       bootstrap-utilities.css
+        |   |       |       bootstrap-utilities.css.map
+        |   |       |       bootstrap-utilities.min.css
+        |   |       |       bootstrap-utilities.min.css.map
+        |   |       |       bootstrap-utilities.rtl.css
+        |   |       |       bootstrap-utilities.rtl.css.map
+        |   |       |       bootstrap-utilities.rtl.min.css
+        |   |       |       bootstrap-utilities.rtl.min.css.map
+        |   |       |       bootstrap.css
+        |   |       |       bootstrap.css.map
+        |   |       |       bootstrap.min.css
+        |   |       |       bootstrap.min.css.map
+        |   |       |       bootstrap.rtl.css
+        |   |       |       bootstrap.rtl.css.map
+        |   |       |       bootstrap.rtl.min.css
+        |   |       |       bootstrap.rtl.min.css.map
+        |   |       |       
+        |   |       \---js
+        |   |               bootstrap.bundle.js
+        |   |               bootstrap.bundle.js.map
+        |   |               bootstrap.bundle.min.js
+        |   |               bootstrap.bundle.min.js.map
+        |   |               bootstrap.esm.js
+        |   |               bootstrap.esm.js.map
+        |   |               bootstrap.esm.min.js
+        |   |               bootstrap.esm.min.js.map
+        |   |               bootstrap.js
+        |   |               bootstrap.js.map
+        |   |               bootstrap.min.js
+        |   |               bootstrap.min.js.map
+        |   |               
+        |   +---jquery
+        |   |   |   LICENSE.txt
+        |   |   |   
+        |   |   \---dist
+        |   |           jquery.js
+        |   |           jquery.min.js
+        |   |           jquery.min.map
+        |   |           
+        |   +---jquery-validation
+        |   |   |   LICENSE.md
+        |   |   |   
+        |   |   \---dist
+        |   |           additional-methods.js
+        |   |           additional-methods.min.js
+        |   |           jquery.validate.js
+        |   |           jquery.validate.min.js
+        |   |           
+        |   \---jquery-validation-unobtrusive
+        |           jquery.validate.unobtrusive.js
+        |           jquery.validate.unobtrusive.min.js
+        |           LICENSE.txt
+        |           
+        \---sounds
+                private-message.mp3
+                
