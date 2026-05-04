@@ -1,4 +1,4 @@
-﻿function getUserNick(user) {
+function getUserNick(user) {
     return user.nick || user.Nick || "";
 }
 
@@ -46,8 +46,8 @@ let virtualUserRows = [];
 let userListVirtualReady = false;
 let activeUserMenuNick = null;
 
-const USER_ROW_HEIGHT = 34;
-const USER_HEADER_HEIGHT = 28;
+const USER_ROW_HEIGHT = 20;
+const USER_HEADER_HEIGHT = 22;
 const USER_OVERSCAN = 8;
 
 function closeUserContextMenu() {
@@ -242,8 +242,8 @@ function renderVirtualUserRows() {
         item.style.height = `${row.height}px`;
 
         item.innerHTML = `
-            <span class="prefix">${roleInfo.prefix || "&nbsp;"}</span>
-            <span class="nick">${nick}</span>
+            <span class="prefix">${roleInfo.prefix}</span>
+    <span class="nick" title="${nick}">${nick}</span>
         `;
 
         item.addEventListener("click", (e) => {
