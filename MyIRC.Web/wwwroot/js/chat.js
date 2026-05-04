@@ -1,263 +1,1628 @@
-function getUserNick(user) {
-    return user.nick || user.Nick || "";
+@{
+    Layout = null;
+    var nick = ViewBag.Nick as string ?? "RSohbet";
+    var password = ViewBag.Password as string ?? "";
 }
 
-function getRoleInfo(user, channelName) {
-    const nick = getUserNick(user);
+<!DOCTYPE html>
+<html lang="tr">
 
-    const roleValue =
-        user.channelRoles?.[channelName]
-        ?? user.ChannelRoles?.[channelName]
-        ?? 0;
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sohbet</title>
 
-    const roleMap = {
-        70: { prefix: ".", className: "role-founder", order: 1 },
-        60: { prefix: "~", className: "role-owner", order: 2 },
-        50: { prefix: "&", className: "role-sop", order: 3 },
-        40: { prefix: "@", className: "role-op", order: 4 },
-        30: { prefix: "!", className: "role-vip", order: 5 },
-        20: { prefix: "%", className: "role-halfop", order: 6 },
-        10: { prefix: "+", className: "role-voice", order: 7 },
-        0: { prefix: "", className: "role-user", order: 8 }
-    };
+    <link rel="icon" href="data:,">
 
-    if (nick.startsWith("RSohbet") && roleValue === 0) {
-        return { prefix: "", className: "role-guest", order: 9 };
-    }
+    <!-- FONT -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-    return roleMap[roleValue] || roleMap[0];
-}
+    <!-- BOOTSTRAP -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 
-function getGroupName(roleInfo) {
-    switch (roleInfo.order) {
-        case 1: return "FOUNDERS";
-        case 2: return "OWNERS";
-        case 3: return "SOP";
-        case 4: return "OP";
-        case 5: return "VIP";
-        case 6: return "HALFOP";
-        case 7: return "VOICE";
-        case 9: return "GUESTS";
-        default: return "USERS";
-    }
-}
+    <!-- ICONS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
-let virtualUserRows = [];
-let userListVirtualReady = false;
-let activeUserMenuNick = null;
+    <link rel="stylesheet" href="/css/style.css" />
+</head>
 
-const USER_ROW_HEIGHT = 20;
-const USER_HEADER_HEIGHT = 22;
-const USER_OVERSCAN = 8;
+<body>
+    <script>
+        let currentUser = "@nick";
+        let loginPassword = "@password";
+        let currentChannel = null;
+        let allUsers = [];
+        let channelMessages = {};
 
-function closeUserContextMenu() {
-    document.getElementById("userContextMenu")?.remove();
-    activeUserMenuNick = null;
-}
+        // 🔥 Reconnect sonrası açık kanalları geri yüklemek için
+        let joinedChannels = new Set();
 
-function openUserContextMenu(nick, anchorEl) {
-    closeUserContextMenu();
+        let currentPrivateUser = null;
+        let privateMessages = {};
+        let privateUnreadUsers = new Set();
 
-    activeUserMenuNick = nick;
+        console.log("Giriş yapan nick:", currentUser);
+    </script>
 
-    const rect = anchorEl.getBoundingClientRect();
+    <header>
+        <nav class="topbar navbar px-2">
 
-    const menu = document.createElement("div");
-    menu.id = "userContextMenu";
-    menu.className = "user-context-menu";
+            <!-- SOL -->
+            <div class="d-flex align-items-center gap-2">
 
-    menu.innerHTML = `
-        <button class="pm-start-btn">Özel sohbet et</button>
-        <button class="profile-btn">Profil</button>
-        <button class="block-btn">Engelle</button>
-    `;
+                <!-- DESKTOP -->
+                <div class="d-none d-lg-flex gap-2">
 
-    menu.style.left = `${rect.left}px`;
-    menu.style.top = `${rect.bottom + 4}px`;
+                    <button class="btn btn-sm btn-top">
+                        <i class="bi bi-broadcast"></i><span>Radyo</span>
+                    </button>
 
-    document.body.appendChild(menu);
+                    <button class="btn btn-sm btn-top" id="privateBtnDesktop">
+                        <i class="bi bi-chat-dots"></i>
+                        <span>Özel</span>
+                        <span class="private-badge" id="privateBadgeDesktop">0</span>
+                    </button>
 
-    menu.querySelector(".pm-start-btn")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        closeUserContextMenu();
+                    <button class="btn btn-sm btn-top">
+                        <i class="bi bi-hash"></i><span>Kanal</span>
+                    </button>
 
-        if (typeof openPrivate === "function") {
-            openPrivate(nick);
-        }
-    });
+                    <button class="btn btn-sm btn-top">
+                        <i class="bi bi-person"></i><span>Nick</span>
+                    </button>
 
-    menu.querySelector(".profile-btn")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        console.log("Profil:", nick);
-    });
+                    <button class="btn btn-sm btn-top">
+                        <i class="bi bi-star"></i><span>Oper</span>
+                    </button>
 
-    menu.querySelector(".block-btn")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        console.log("Engelle:", nick);
-    });
-}
+                </div>
 
-document.addEventListener("pointerdown", (e) => {
-    const menu = document.getElementById("userContextMenu");
+                <!-- MOBILE -->
+                <div class="d-flex d-lg-none gap-2">
 
-    if (menu && menu.contains(e.target)) {
-        return;
-    }
+                    <button class="btn btn-sm btn-top">
+                        <i class="bi bi-broadcast"></i><span>Radyo</span>
+                    </button>
 
-    if (e.target.closest(".user-item")) {
-        return;
-    }
+                    <button class="btn btn-sm btn-top" id="privateBtnMobile">
+                        <i class="bi bi-chat-dots"></i>
+                        <span>Özel</span>
+                        <span class="private-badge" id="privateBadgeMobile">0</span>
+                    </button>
 
-    closeUserContextMenu();
+                    <button class="btn btn-sm btn-top" id="channelBarToggleBtn">
+                        <i class="bi bi-chevron-up"></i>
+                    </button>
 
-    document.querySelectorAll(".user-item").forEach(i => {
-        i.classList.remove("active");
-    });
-});
+                    <button class="btn btn-sm btn-top" id="topicBarToggleBtn">
+                        <i class="bi bi-chevron-up"></i>
+                    </button>
 
-function buildVirtualUserRows() {
-    const grouped = {};
+                    <button class="btn btn-sm btn-top" id="userListToggleBtn">
+                        <i class="bi bi-people"></i>
+                    </button>
 
-    allUsers
-        .filter(user =>
-            user.channels &&
-            user.channels.some(c => c.toLowerCase() === currentChannel.toLowerCase())
-        )
-        .forEach(user => {
-            const roleInfo = getRoleInfo(user, currentChannel);
-            const key = roleInfo.order;
+                </div>
 
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(user);
+            </div>
+
+            <!-- SAĞ -->
+            <div class="ms-auto d-flex align-items-center gap-2">
+
+                <button id="themeToggle" class="btn btn-sm btn-top">
+                    <i class="bi bi-moon"></i>
+                </button>
+
+                <button class="btn btn-sm btn-top d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
+                    <i class="bi bi-list"></i>
+                </button>
+
+            </div>
+
+        </nav>
+    </header>
+
+    <!-- ========================= -->
+    <!-- MAIN -->
+    <!-- ========================= -->
+    <main>
+
+        <!-- CHANNEL BAR -->
+        <section class="channel-bar-wrapper">
+            <button class="scroll-btn left" id="scrollLeft">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+
+            <div class="channel-bar" id="channelBar">
+
+                <!-- 🔥 STATUS (pasif / sistem) -->
+                <div class="channel-btn disabled">
+                    <span class="channel-name">Status</span>
+                </div>
+
+                <!-- ❌ Artık burada #Sohbet / #Radyo YOK -->
+
+            </div>
+
+            <button class="scroll-btn right" id="scrollRight">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </section>
+
+        <!-- TOPIC -->
+        <section class="topic-bar">
+            <div class="topic-left"></div>
+            <div class="topic-center">
+                Yeni Sohbet Adresi
+            </div>
+            <div class="topic-right">
+                <a href="https://rsohbet.com" target="_blank">
+                    https://rsohbet.com
+                </a>
+            </div>
+        </section>
+
+        <!-- 🔥 SADECE BURASI FLEX -->
+        <div class="chat-layout">
+
+            <!-- CHAT -->
+            <section class="chat-area">
+
+                <div class="chat-messages" id="chatMessages"></div>
+
+                <div class="chat-input">
+
+                    <!-- TOOLBAR -->
+                    <div class="chat-toolbar">
+                        <button id="tabCompleteBtn" type="button">Tab</button>
+                        <button>B</button>
+                        <button>U</button>
+                        <button>🙂</button>
+                    </div>
+
+                    <!-- INPUT -->
+                    <div class="chat-input-row">
+
+                        <div class="input-wrapper">
+                            <input id="messageInput" type="text" placeholder="Mesaj yazın..." autocomplete="off">
+
+                            <button class="send-btn">
+                                <i class="bi bi-send-fill"></i>
+                            </button>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- USER LIST -->
+            <aside class="user-list">
+
+                <div class="user-search">
+                    <input type="text" placeholder="Nick ara...">
+                </div>
+
+                <div class="users" id="usersList">
+                    <!-- kullanıcılar JS ile eklenecek -->
+                </div>
+
+            </aside>
+
+        </div>
+
+    </main>
+
+    <!-- ========================= -->
+    <!-- PRIVATE PANEL -->
+    <!-- ========================= -->
+    <div id="privatePanel" class="private-panel">
+
+        <div class="private-header">
+            <span>Özel Sohbetler</span>
+
+            <button id="privateCloseBtn" class="private-close">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+
+        <div class="private-list">
+            Liste buraya gelecek
+        </div>
+
+    </div>
+
+    <!-- ========================= -->
+    <!-- MOBILE MENU -->
+    <!-- ========================= -->
+    <div class="offcanvas offcanvas-end mobile-menu" id="mobileMenu">
+
+        <div class="offcanvas-header">
+            <h5>Menü</h5>
+            <button class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+
+        <div class="offcanvas-body d-flex flex-column gap-2">
+
+            <button class="btn btn-outline-secondary">
+                <i class="bi bi-plus-circle"></i> Kanal Gir
+            </button>
+
+            <button class="btn btn-outline-secondary">
+                <i class="bi bi-person-gear"></i> Nick İşlemleri
+            </button>
+
+            <button class="btn btn-outline-secondary">
+                <i class="bi bi-shield-lock"></i> Oper İşlemleri
+            </button>
+
+            <hr>
+
+            <button class="btn btn-outline-secondary">Kanal Listesi</button>
+            <button class="btn btn-outline-secondary">Kanal Bar</button>
+            <button class="btn btn-outline-secondary">Topic Bar</button>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- CHANNEL CLOSE CONFIRM -->
+    <div class="modal fade" id="confirmCloseModal" tabindex="-1">
+        <div class="modal-dialog modal-sm custom-modal-pos">
+            <div class="modal-content modern-modal">
+
+                <div class="modern-header">
+                    <span>Kanaldan ayrıl?</span>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modern-body">
+                    Bu kanaldan çıkmak istiyor musun?
+                </div>
+
+                <div class="modern-actions">
+                    <button class="btn btn-sm btn-light" data-bs-dismiss="modal">Hayır</button>
+                    <button class="btn btn-sm btn-danger" id="confirmCloseBtn">Evet</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================= -->
+    <!-- SCRIPTS -->
+    <!-- ========================= -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script src="/js/chat.js"></script>
+
+
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/chatHub?nick=" + encodeURIComponent(currentUser))
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .build();
+
+        connection.onreconnecting(() => {
+            console.log("Bağlantı koptu...");
         });
 
-    const rows = [];
-    let top = 0;
+        connection.onreconnected(async () => {
+            console.log("Yeniden bağlandı");
 
-    Object.keys(grouped)
-        .sort((a, b) => Number(a) - Number(b))
-        .forEach(order => {
-            const users = grouped[order];
+            for (const ch of joinedChannels) {
+                await connection.invoke("JoinChannel", ch);
+            }
+        });
 
-            users.sort((a, b) =>
-                getUserNick(a).localeCompare(getUserNick(b), "tr")
+        function getNickColor(nick) {
+            const colors = [
+                "#ff6b6b", "#4ecdc4", "#ffd93d", "#1dd1a1",
+                "#54a0ff", "#5f27cd", "#ff9f43", "#10ac84"
+            ];
+
+            let hash = 0;
+
+            for (let i = 0; i < nick.length; i++) {
+                hash = nick.charCodeAt(i) + ((hash << 5) - hash);
+            }
+
+            return colors[Math.abs(hash % colors.length)];
+        }
+
+        function markChannelUnread(channelName) {
+            document.querySelectorAll(".channel-btn").forEach(btn => {
+                const name = btn.querySelector(".channel-name")?.textContent?.trim();
+
+                if (name === channelName && !btn.classList.contains("active")) {
+                    btn.classList.add("unread");
+                }
+            });
+        }
+
+        function markChannelMention(channelName) {
+
+            document.querySelectorAll(".channel-btn").forEach(btn => {
+                const name = btn.querySelector(".channel-name")?.textContent?.trim();
+
+                if (name === channelName && !btn.classList.contains("active")) {
+                    btn.classList.remove("unread");
+                    btn.classList.add("mention");
+                }
+            });
+        }
+
+        function appendMentionNotice(fromUser, channelName) {
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const notice = {
+                user: "Sistem",
+                message: `${currentUser} ← ${fromUser} : 🔔 ${channelName} kanalında size seslendi.`,
+                time: time,
+                type: "mentionNotice",
+                targetChannel: channelName,
+                targetNick: null
+            };
+
+            // 🔥 SADECE KANAL MODUNDAYKEN
+            if (!currentPrivateUser) {
+
+                if (!channelMessages[currentChannel]) {
+                    channelMessages[currentChannel] = [];
+                }
+
+                channelMessages[currentChannel].push(notice);
+
+                appendMessageToChat(
+                    notice.user,
+                    notice.message,
+                    notice.time,
+                    notice.type,
+                    notice.targetChannel,
+                    notice.targetNick
+                );
+            }
+        }
+
+        function appendMessageToChat(user, message, time, type, targetChannel, targetNick) {
+            const container = document.getElementById("chatMessages");
+
+            const div = document.createElement("div");
+            div.classList.add("msg-line");
+
+            // 🔥 KANAL MENTION (tıklanabilir + kalıcı)
+            if (type === "mentionNotice") {
+                div.classList.add("system-msg");
+
+                div.innerHTML = `
+                <span class="msg-time">${time}</span>
+                <span class="msg-text">
+                    Sistem: 🔔
+                    <span class="mention-channel" data-channel="${targetChannel}">
+                        ${targetChannel}
+                    </span>
+                    kanalında size seslendi.
+                </span>
+            `;
+
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+                return;
+            }
+
+            // 🔥 ÖZEL MENTION (tıklanabilir + kalıcı)
+            if (type === "privateMentionNotice") {
+                div.classList.add("system-msg");
+
+                div.innerHTML = `
+                    <span class="msg-time">${time}</span>
+                    <span class="msg-text">
+                        Sistem: 🔔
+                        <span class="private-mention-nick" data-nick="${targetNick}">
+                            ${targetNick}
+                        </span>
+                        özelden size sesleniyor.
+                    </span>
+                `;
+
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+                return;
+            }
+
+            // 🔥 SİSTEM MESAJLARI
+            if (user === "Sistem" || user === "NickServ" || user === "ChanServ") {
+
+                let typeClass = "system-default";
+
+                if (user === "NickServ") {
+                    typeClass = "system-nickserv";
+                }
+
+                if (user === "ChanServ") {
+                    typeClass = "system-chanserv";
+                }
+
+                if (message.includes("→") && message.includes("bağlandı")) {
+                    typeClass = "system-join";
+                }
+                else if (message.includes("←") && message.includes("ayrıldı")) {
+                    typeClass = "system-part";
+                }
+                else if (message.includes("sunucudan ayrıldı")) {
+                    typeClass = "system-quit";
+                }
+                else if (message.startsWith("*")) {
+                    typeClass = "system-me";
+                }
+
+                div.classList.add("system-msg", typeClass);
+
+                div.innerHTML = `
+                    <span class="msg-time">${time}</span>
+                    <span class="msg-text">${user}: ${message}</span>
+                `;
+            }
+
+            // 🔥 NORMAL MESAJ
+            else {
+                const msg = message.toLowerCase();
+                const nick = currentUser.toLowerCase();
+
+                const isMention = msg.includes("\u0040" + nick) || msg.includes(nick);
+
+                const messageUser = allUsers.find(u =>
+                    u.nick && u.nick.toLowerCase() === user.toLowerCase()
+                );
+
+                const roleInfo = messageUser
+                    ? getRoleInfo(messageUser, currentChannel)
+                    : { prefix: "" };
+
+                const displayNick = `${roleInfo.prefix || ""}${user}`;
+
+                div.innerHTML = `
+                    <span class="msg-time">${time}</span>
+                    <span class="msg-nick"
+                          style="color:${getNickColor(user)}; ${user === currentUser ? 'font-weight:600;' : ''}">
+                        ${displayNick}:
+                    </span>
+                    <span class="msg-text ${isMention ? 'mention' : ''}">
+                        ${message}
+                    </span>
+                `;
+            }
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function renderChannelMessages(channelName) {
+            const container = document.getElementById("chatMessages");
+            container.innerHTML = "";
+
+            const messages = channelMessages[channelName] || [];
+
+            messages.forEach(item => {
+                appendMessageToChat(
+                    item.user,
+                    item.message,
+                    item.time,
+                    item.type,
+                    item.targetChannel,
+                    item.targetNick
+                );
+            });
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        connection.on("ReceiveMessage", (user, message, channel) => {
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            if (!channelMessages[channel]) {
+                channelMessages[channel] = [];
+            }
+
+            channelMessages[channel].push({
+                user: user,
+                message: message,
+                time: time
+            });
+
+            // 🔥 Özel sohbet açıksa kanal mesajını özel pencereye basma
+            if (currentPrivateUser) {
+
+                if (user === "Sistem") {
+                    markChannelUnread(channel);
+                    return;
+                }
+
+                const msg = message.toLowerCase();
+                const nick = currentUser.toLowerCase();
+
+                const isMention = msg.includes("\u0040" + nick) || msg.includes(nick);
+
+                if (isMention) {
+                    markChannelMention(channel);
+                    appendMentionNotice(user, channel);
+                } else {
+                    markChannelUnread(channel);
+                }
+
+                return;
+            }
+
+            if (channel !== currentChannel) {
+
+                if (user === "Sistem") {
+                    markChannelUnread(channel);
+                    return;
+                }
+
+                const msg = message.toLowerCase();
+                const nick = currentUser.toLowerCase();
+
+                const isMention = msg.includes("\u0040" + nick) || msg.includes(nick);
+
+                if (isMention) {
+                    markChannelMention(channel);
+                    appendMentionNotice(user, channel);
+                } else {
+                    markChannelUnread(channel);
+                }
+
+                return;
+            }
+
+            appendMessageToChat(user, message, time);
+        });
+
+        connection.on("ReceivePrivateMessage", (fromUser, targetNick, message) => {
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const chatUser = fromUser === currentUser ? targetNick : fromUser;
+
+            if (!privateMessages[chatUser]) {
+                privateMessages[chatUser] = [];
+            }
+
+            privateMessages[chatUser].push({
+                user: fromUser,
+                message: message,
+                time: time
+            });
+
+            // 🔥 Eğer açık değilse unread say
+            if (currentPrivateUser !== chatUser) {
+
+                const wasUnread = privateUnreadUsers.has(chatUser);
+
+                privateUnreadUsers.add(chatUser);
+
+                const privateList = document.querySelector(".private-list");
+                const exists = privateList.querySelector(`[data-nick="${chatUser}"]`);
+
+                if (!exists) {
+                    const item = document.createElement("div");
+                    item.className = "private-item unread";
+                    item.dataset.nick = chatUser;
+
+                    item.innerHTML = `
+                        <div class="private-left">${chatUser}</div>
+                        <button class="private-close-btn">✖</button>
+                    `;
+
+                    privateList.appendChild(item);
+                } else {
+                    exists.classList.add("unread");
+                }
+
+                updatePrivateBadge();
+                startPrivateAlert();
+
+                // 🔥 Sadece ilk okunmamış özel mesajda bildirim + ses
+                if (!wasUnread) {
+                    appendPrivateMentionNotice(chatUser);
+                    playPrivateAlertOnce();
+                }
+
+                return;
+            }
+
+            appendMessageToChat(fromUser, message, time);
+        });
+
+        function appendPrivateMentionNotice(fromUser) {
+
+            // 🔥 SADECE AYNI KİŞİYLE ÖZEL AÇIKSA sustur
+            if (currentPrivateUser === fromUser) return;
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const notice = {
+                user: "Sistem",
+                message: `🔔 ${fromUser} özelden size sesleniyor.`,
+                time: time,
+                type: "privateMentionNotice",
+                targetNick: fromUser
+            };
+
+            if (!channelMessages[currentChannel]) {
+                channelMessages[currentChannel] = [];
+            }
+
+            channelMessages[currentChannel].push(notice);
+
+            appendMessageToChat(
+                notice.user,
+                notice.message,
+                notice.time,
+                notice.type,
+                null,
+                notice.targetNick
+            );
+        }
+
+        connection.on("ReceiveUserList", (channel, users) => {
+
+            // 🔥 O kanalın eski kullanıcılarını temizle
+            allUsers = allUsers.filter(u =>
+                !(u.channels && u.channels.includes(channel))
             );
 
-            const roleInfo = getRoleInfo(users[0], currentChannel);
+            users.forEach(u => {
 
-            rows.push({
-                type: "header",
-                text: `${getGroupName(roleInfo)} (${users.length})`,
-                top,
-                height: USER_HEADER_HEIGHT
+                let existing = allUsers.find(x =>
+                    x.nick && x.nick.toLowerCase() === u.nick.toLowerCase()
+                );
+
+                if (!existing) {
+                    existing = {
+                        nick: u.nick,
+                        channels: [],
+                        channelRoles: {}
+                    };
+
+                    allUsers.push(existing);
+                }
+
+                if (!existing.channels.includes(channel)) {
+                    existing.channels.push(channel);
+                }
+
+                existing.channelRoles[channel] = u.role;
             });
 
-            top += USER_HEADER_HEIGHT;
+            // 🔥 aktif kanal ise render
+            if (channel === currentChannel) {
+                renderUserList();
+            }
+        });
 
-            users.forEach(user => {
-                rows.push({
-                    type: "user",
-                    user,
-                    top,
-                    height: USER_ROW_HEIGHT
+        connection.on("ReceiveUserJoined", (channel, nick, role) => {
+
+            let user = allUsers.find(x =>
+                x.nick && x.nick.toLowerCase() === nick.toLowerCase()
+            );
+
+            if (!user) {
+                user = {
+                    nick: nick,
+                    channels: [],
+                    channelRoles: {}
+                };
+
+                allUsers.push(user);
+            }
+
+            if (!user.channels.includes(channel)) {
+                user.channels.push(channel);
+            }
+
+            if (!user.channelRoles) {
+                user.channelRoles = {};
+            }
+
+            user.channelRoles[channel] = role;
+
+            renderUserList();
+
+            if (currentPrivateUser && typeof updatePrivateUI === "function") {
+                updatePrivateUI(currentPrivateUser);
+            }
+        });
+
+        connection.on("ReceiveNickChanged", (oldNick, newNick) => {
+
+            const index = allUsers.findIndex(x =>
+                (x.nick || x.Nick)?.toLowerCase() === oldNick.toLowerCase()
+            );
+
+            if (index === -1) return;
+
+            const oldUser = allUsers[index];
+
+            const updatedUser = {
+                ...oldUser,
+                nick: newNick
+            };
+
+            allUsers[index] = updatedUser;
+
+            // 🔥 private fix
+            if (privateMessages[oldNick]) {
+                privateMessages[newNick] = privateMessages[oldNick];
+                delete privateMessages[oldNick];
+            }
+
+            if (privateUnreadUsers.has(oldNick)) {
+                privateUnreadUsers.delete(oldNick);
+                privateUnreadUsers.add(newNick);
+            }
+
+            // 🔥 KRİTİK: currentUser güncelle (kendinse)
+            if (currentUser.toLowerCase() === oldNick.toLowerCase()) {
+                currentUser = newNick;
+            }
+
+            renderUserList();
+        });
+
+        connection.on("ReceiveUserRoleChanged", (channel, nick, role) => {
+            console.log("ROLE UPDATE:", nick, channel, role);
+
+            let user = allUsers.find(x =>
+                (x.nick || x.Nick)?.toLowerCase() === nick.toLowerCase()
+            );
+
+            // 🔥 USER YOKSA OLUŞTUR
+            if (!user) {
+                user = {
+                    nick: nick,
+                    channels: [],
+                    channelRoles: {}
+                };
+
+                allUsers.push(user);
+            }
+
+            // 🔥 KRİTİK: channels garanti
+            if (!user.channels) {
+                user.channels = [];
+            }
+
+            if (!user.channels.includes(channel)) {
+                user.channels.push(channel);
+            }
+
+            // 🔥 role garanti
+            if (!user.channelRoles) {
+                user.channelRoles = {};
+            }
+
+            user.channelRoles[channel] = Number(role);
+
+            renderUserList();
+        });
+
+        connection.on("ReceiveUserLeft", (channel, nick) => {
+
+            const user = allUsers.find(x =>
+                x.nick && x.nick.toLowerCase() === nick.toLowerCase()
+            );
+
+            if (user) {
+                user.channels = user.channels.filter(x =>
+                    x.toLowerCase() !== channel.toLowerCase()
+                );
+
+                if (user.channels.length === 0) {
+                    allUsers = allUsers.filter(x =>
+                        x.nick && x.nick.toLowerCase() !== nick.toLowerCase()
+                    );
+                }
+            } else {
+                allUsers = allUsers.filter(x =>
+                    x.nick && x.nick.toLowerCase() !== nick.toLowerCase()
+                );
+            }
+
+            renderUserList();
+
+            // 🔥 Özel sohbet açıksa kanala dönme
+            if (currentPrivateUser && typeof updatePrivateUI === "function") {
+                updatePrivateUI(currentPrivateUser);
+                return;
+            }
+        });
+
+        connection.on("ReceiveTopicInfo", (channel, count, modes, topic, link) => {
+
+            // 🔥 Özel sohbet açıksa kanal topic bilgisini basma
+            if (currentPrivateUser) return;
+
+            if (channel !== currentChannel) return;
+
+            document.querySelector(".topic-left").textContent = `${channel} (${count})`;
+
+            document.querySelector(".topic-center").textContent =
+                `${modes} ${topic}`;
+
+            document.querySelector(".topic-right").innerHTML =
+                `<a href="${link}" target="_blank">${link}</a>`;
+        });
+
+        connection.on("SetNick", (nick) => {
+            currentUser = nick;
+            console.log("Yeni nick:", currentUser);
+
+            // 🔥 nick değişince kullanıcı listesini tekrar çiz
+            renderUserList();
+        });
+
+        connection.on("SetActiveChannel", (channelName) => {
+            switchToChannel(channelName);
+        });
+
+        connection.on("ChannelJoined", (channelName) => {
+
+            // 🔥 Reconnect için açık kanalı hafızada tut
+            joinedChannels.add(channelName);
+
+            const bar = document.getElementById("channelBar");
+            if (!bar) return;
+
+            let btn = [...bar.querySelectorAll(".channel-btn")]
+                .find(x => x.querySelector(".channel-name")?.textContent.trim() === channelName);
+
+            if (!btn) {
+                btn = document.createElement("div");
+                btn.className = "channel-btn";
+
+                btn.innerHTML = `
+                    <span class="channel-name">${channelName}</span>
+                    <span class="channel-close"><i class="bi bi-x"></i></span>
+                `;
+
+                bar.appendChild(btn);
+            }
+
+            // 🔥 Sadece mevcut aktif kanal ise aktif yap
+            if (channelName === currentChannel) {
+                bar.querySelectorAll(".channel-btn").forEach(x => {
+                    x.classList.remove("active");
                 });
 
-                top += USER_ROW_HEIGHT;
-            });
+                btn.classList.add("active");
+                btn.classList.remove("unread");
+                btn.classList.remove("mention");
+
+                document.querySelector(".topic-left").textContent = channelName;
+
+                renderChannelMessages(channelName);
+                renderUserList();
+            }
         });
 
-    virtualUserRows = rows;
-    return top;
-}
+        connection.on("ChannelParted", (channelName) => {
 
-function initVirtualUserList() {
-    if (userListVirtualReady) return;
+            // 🔥 Reconnect için ayrıldığı kanalı hafızadan sil
+            joinedChannels.delete(channelName);
 
-    const usersList = document.getElementById("usersList");
-    if (!usersList) return;
+            const bar = document.getElementById("channelBar");
+            if (!bar) return;
 
-    usersList.addEventListener("scroll", () => {
-        closeUserContextMenu();
-        renderVirtualUserRows();
-    });
+            const buttons = [...bar.querySelectorAll(".channel-btn:not(.disabled)")];
 
-    userListVirtualReady = true;
-}
+            const removedBtn = buttons.find(btn => {
+                const name = btn.querySelector(".channel-name")?.textContent?.trim();
+                return name === channelName;
+            });
 
-function renderUserList() {
-    const usersList = document.getElementById("usersList");
-    if (!usersList) return;
+            if (!removedBtn) return;
 
-    closeUserContextMenu();
-    initVirtualUserList();
+            const wasActive = removedBtn.classList.contains("active");
+            const index = buttons.indexOf(removedBtn);
 
-    const totalHeight = buildVirtualUserRows();
+            removedBtn.remove();
+            delete channelMessages[channelName];
 
-    usersList.innerHTML = `
-        <div class="virtual-user-spacer" style="height:${totalHeight}px;"></div>
-    `;
+            if (!wasActive) return;
 
-    renderVirtualUserRows();
-}
+            const remainingButtons = [...bar.querySelectorAll(".channel-btn:not(.disabled)")];
 
-function renderVirtualUserRows() {
-    const usersList = document.getElementById("usersList");
-    const spacer = usersList?.querySelector(".virtual-user-spacer");
+            const nextBtn = remainingButtons[index] || remainingButtons[index - 1];
+            const nextChannel = nextBtn?.querySelector(".channel-name")?.textContent?.trim();
 
-    if (!usersList || !spacer) return;
+            if (nextChannel) {
+                switchToChannel(nextChannel);
+            }
+        });
 
-    spacer.innerHTML = "";
-
-    const scrollTop = usersList.scrollTop;
-    const viewHeight = usersList.clientHeight;
-
-    const visibleRows = virtualUserRows.filter(row =>
-        row.top + row.height >= scrollTop - USER_OVERSCAN * USER_ROW_HEIGHT &&
-        row.top <= scrollTop + viewHeight + USER_OVERSCAN * USER_ROW_HEIGHT
-    );
-
-    visibleRows.forEach(row => {
-        if (row.type === "header") {
-            const header = document.createElement("div");
-            header.className = "user-group-header virtual-user-row";
-            header.style.transform = `translateY(${row.top}px)`;
-            header.style.height = `${row.height}px`;
-            header.textContent = row.text;
-
-            spacer.appendChild(header);
-            return;
+        function joinChannel(channelName) {
+            connection.invoke("JoinChannel", channelName);
         }
 
-        const user = row.user;
-        const nick = getUserNick(user);
-        const roleInfo = getRoleInfo(user, currentChannel);
+        function sendPrivateMessage(targetNick, message) {
+            connection.invoke("SendPrivateMessage", targetNick, message);
+        }
 
-        const item = document.createElement("div");
+        function partChannel(channelName) {
+            connection.invoke("PartChannel", channelName);
+        }
 
-        item.className = nick === currentUser
-            ? `user-item self ${roleInfo.className} virtual-user-row`
-            : `user-item ${roleInfo.className} virtual-user-row`;
+        connection.start()
+            .then(() => {
+                console.log("SignalR bağlantısı başarılı.");
 
-        item.style.transform = `translateY(${row.top}px)`;
-        item.style.height = `${row.height}px`;
+                if (loginPassword && loginPassword.trim() !== "") {
+                    connection.invoke("IdentifyNick", loginPassword);
+                }
+            })
+            .catch(err => {
+                console.error("SignalR bağlantı hatası:", err);
+            });
+    </script>
 
-        item.innerHTML = `
-            <span class="prefix">${roleInfo.prefix}</span>
-    <span class="nick" title="${nick}">${nick}</span>
-        `;
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
 
-        item.addEventListener("click", (e) => {
-            e.stopPropagation();
+            const input = document.getElementById("messageInput");
+            const sendBtn = document.querySelector(".send-btn");
 
-            document.querySelectorAll(".user-item").forEach(i => {
-                if (i !== item) i.classList.remove("active");
+            function sendMessage() {
+                const message = input.value.trim();
+                if (!message) return;
+
+                // 🔥 KOMUTSA HER ZAMAN BACKEND'E (private fark etmez)
+                if (message.startsWith("/")) {
+                    connection.invoke("SendMessage", currentUser, message, currentChannel);
+                    input.value = "";
+                    return;
+                }
+
+                // 🔥 NORMAL MESAJ
+                if (currentPrivateUser) {
+                    sendPrivateMessage(currentPrivateUser, message);
+                } else {
+                    connection.invoke("SendMessage", currentUser, message, currentChannel);
+                }
+
+                input.value = "";
+            }
+
+            input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
             });
 
-            item.classList.add("active");
+            sendBtn.addEventListener("click", sendMessage);
 
-            openUserContextMenu(nick, item);
+        });
+    </script>
+
+    <script>
+        (function () {
+
+            const toggle = document.getElementById("themeToggle");
+            if (!toggle) return;
+
+            const html = document.documentElement;
+            const icon = toggle.querySelector("i");
+
+            // 🔥 KAYITLI THEME YÜKLE
+            const savedTheme = localStorage.getItem("theme");
+
+            if (savedTheme === "dark") {
+                html.setAttribute("data-theme", "dark");
+                icon.className = "bi bi-sun";
+            }
+
+            // 🔥 CLICK
+            toggle.addEventListener("click", () => {
+
+                if (html.getAttribute("data-theme") === "dark") {
+                    html.removeAttribute("data-theme");
+                    icon.className = "bi bi-moon";
+
+                    localStorage.setItem("theme", "light");
+
+                } else {
+                    html.setAttribute("data-theme", "dark");
+                    icon.className = "bi bi-sun";
+
+                    localStorage.setItem("theme", "dark");
+                }
+            });
+
+        })();
+    </script>
+
+    <script>
+        // SCROLL
+        (function () {
+            const bar = document.getElementById("channelBar");
+            const left = document.getElementById("scrollLeft");
+            const right = document.getElementById("scrollRight");
+
+            if (!bar) return;
+
+            left.onclick = () => bar.scrollBy({ left: -150, behavior: "smooth" });
+            right.onclick = () => bar.scrollBy({ left: 150, behavior: "smooth" });
+        })();
+    </script>
+
+    <script>
+        // CLOSE CHANNEL
+        (function () {
+
+            const bar = document.getElementById("channelBar");
+            const modalEl = document.getElementById("confirmCloseModal");
+            const confirmBtn = document.getElementById("confirmCloseBtn");
+
+            if (!bar || !modalEl) return;
+
+            const modal = new bootstrap.Modal(modalEl);
+
+            let targetItem = null;
+
+            // X'e basınca modal aç
+            bar.addEventListener("click", (e) => {
+
+                const close = e.target.closest(".channel-close");
+                if (!close) return;
+
+                e.stopPropagation();
+
+                const item = close.closest(".channel-btn");
+                if (!item) return;
+
+                targetItem = item;
+
+                modal.show();
+            });
+
+            // EVET
+            confirmBtn.addEventListener("click", () => {
+
+                if (!targetItem) return;
+
+                const channelName = targetItem.querySelector(".channel-name")?.textContent?.trim();
+
+                if (channelName && channelName.startsWith("#")) {
+                    partChannel(channelName);
+                }
+
+                targetItem = null;
+                modal.hide();
+            });
+
+        })();
+    </script>
+
+    <script>
+        // ACTIVE SWITCH + CHANNEL CHANGE
+
+        function switchToChannel(channelName) {
+
+            if (!channelName || !channelName.startsWith("#")) {
+                return;
+            }
+
+            const bar = document.getElementById("channelBar");
+            if (!bar) return;
+
+            bar.querySelectorAll(".channel-btn").forEach(btn => {
+                btn.classList.remove("active");
+
+                const name = btn.querySelector(".channel-name")?.textContent?.trim();
+
+                if (name === channelName) {
+                    btn.classList.add("active");
+                    btn.classList.remove("unread");
+                    btn.classList.remove("mention");
+                }
+            });
+
+            // özel sohbetten çık
+            currentPrivateUser = null;
+            document.body.classList.remove("private-active");
+
+            document.querySelectorAll(".private-item").forEach(item => {
+                item.classList.remove("active");
+            });
+
+            document.querySelector(".user-list")?.classList.remove("hidden");
+
+            currentChannel = channelName;
+
+            document.querySelector(".topic-left").textContent = channelName;
+            document.querySelector(".topic-center").textContent = "Yükleniyor...";
+            document.querySelector(".topic-right").innerHTML = "";
+
+            renderChannelMessages(channelName);
+            renderUserList();
+            connection.invoke("RequestChannelTopicInfo", channelName);
+        }
+    </script>
+
+    <script>
+        (function () {
+
+            const bar = document.getElementById("channelBar");
+            if (!bar) return;
+
+            bar.addEventListener("click", (e) => {
+
+                if (e.target.closest(".channel-close")) return;
+
+                const btn = e.target.closest(".channel-btn");
+                if (!btn) return;
+
+                const channelName = btn.querySelector(".channel-name")?.textContent?.trim();
+
+                switchToChannel(channelName);
+            });
+
+        })();
+    </script>
+
+    <script>
+        document.addEventListener("click", (e) => {
+
+            const target = e.target.closest(".mention-channel");
+
+            if (!target) return;
+
+            const channelName = target.dataset.channel;
+
+            const isOpen = [...document.querySelectorAll(".channel-btn:not(.disabled) .channel-name")]
+                .some(x => x.textContent.trim() === channelName);
+
+            if (isOpen) {
+                switchToChannel(channelName);
+            } else {
+                joinChannel(channelName);
+            }
+        });
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+
+            const panel = document.getElementById("privatePanel");
+            const close = document.getElementById("privateCloseBtn");
+
+            const buttons = document.querySelectorAll("#privateBtnDesktop, #privateBtnMobile");
+
+            // 🔥 AÇ / KAPAT (toggle)
+            buttons.forEach(btn => {
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation(); // dış click'e düşmesin
+                    panel.classList.toggle("active");
+                });
+            });
+
+            // 🔥 PANEL İÇİNE TIKLANIRSA KAPANMASIN
+            panel.addEventListener("click", (e) => {
+                e.stopPropagation();
+            });
+
+            // 🔥 X BUTONU
+            close?.addEventListener("click", () => {
+                panel.classList.remove("active");
+            });
+
+            // 🔥 DIŞARI TIKLANCA KAPAT
+            document.addEventListener("click", () => {
+                panel.classList.remove("active");
+            });
+
+        });
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+
+            const privateList = document.querySelector(".private-list");
+            const privatePanel = document.getElementById("privatePanel");
+
+            window.openPrivate = function (nick) {
+
+                if (!privateList) return;
+
+                const exists = privateList.querySelector(`[data-nick="${nick}"]`);
+
+                if (exists) {
+                    exists.classList.add("active");
+
+                    currentPrivateUser = nick;
+                    updatePrivateUI(nick);
+
+                    privateUnreadUsers.delete(nick);
+                    updatePrivateBadge();
+
+                    // 🔥 BURAYA EKLE
+                    exists.classList.remove("unread");
+
+                    if (privateUnreadUsers.size === 0) {
+                        stopPrivateAlert();
+                    }
+
+                    document.querySelector(".user-list")?.classList.add("hidden");
+                    document.getElementById("messageInput")?.focus();
+
+                    return;
+                }
+
+                const item = document.createElement("div");
+                item.className = "private-item active";
+                item.dataset.nick = nick;
+
+                item.innerHTML = `
+                    <div class="private-left">${nick}</div>
+                    <button class="private-close-btn">✖</button>
+                `;
+
+                privateList.appendChild(item);
+
+                currentPrivateUser = nick;
+                updatePrivateUI(nick);
+
+                privateUnreadUsers.delete(nick);
+                updatePrivateBadge();
+
+                document.querySelector(".user-list")?.classList.add("hidden");
+                document.getElementById("messageInput")?.focus();
+            };
+
+            window.updatePrivateUI = function (nick) {
+
+                document.querySelector(".topic-left").textContent = "";
+
+                // 🔥 Online kontrol
+                const isOnline = allUsers.some(u => u.nick === nick);
+
+                document.querySelector(".topic-center").innerHTML = `
+            ${nick} ile özel sohbet ediyorsunuz
+            <span class="private-status ${isOnline ? "online" : "offline"}">
+                ${isOnline ? "🟢 Online" : "⚫ Offline"}
+            </span>
+        `;
+
+                document.querySelector(".topic-right").textContent = "";
+
+                renderPrivateMessages(nick);
+            };
+
+            function renderPrivateMessages(nick) {
+
+                const container = document.getElementById("chatMessages");
+                container.innerHTML = "";
+
+                const messages = privateMessages[nick] || [];
+
+                messages.forEach(msg => {
+                    appendMessageToChat(msg.user, msg.message, msg.time);
+                });
+
+                container.scrollTop = container.scrollHeight;
+            }
+
+            privateList.addEventListener("click", (e) => {
+
+                const closeBtn = e.target.closest(".private-close-btn");
+
+                if (closeBtn) {
+                    e.stopPropagation();
+
+                    const item = closeBtn.closest(".private-item");
+                    const closedNick = item?.dataset.nick;
+
+                    if (item) item.remove();
+
+                    privateUnreadUsers.delete(closedNick);
+                    updatePrivateBadge();
+
+                    if (privateUnreadUsers.size === 0) {
+                        stopPrivateAlert();
+                    }
+
+                    // Eğer kapatılan kişi aktif özel sohbetse kanala dön
+                    if (currentPrivateUser === closedNick) {
+                        currentPrivateUser = null;
+
+                        document.querySelector(".user-list")?.classList.remove("hidden");
+
+                        document.querySelector(".topic-left").textContent = currentChannel;
+                        document.querySelector(".topic-center").textContent = "Yeni Sohbet Adresi";
+                        document.querySelector(".topic-right").innerHTML =
+                            '<a href="https://rsohbet.com" target="_blank">https://rsohbet.com</a>';
+
+                        renderChannelMessages(currentChannel);
+                        renderUserList();
+                    }
+
+                    if (privateList.children.length === 0) {
+                        privatePanel.classList.remove("active");
+                        document.body.classList.remove("private-active");
+                    }
+
+                    return;
+                }
+
+                const item = e.target.closest(".private-item");
+                if (!item) return;
+
+                const nick = item.dataset.nick;
+
+                currentPrivateUser = nick;
+
+                privateUnreadUsers.delete(nick);
+                updatePrivateBadge();
+
+                // 🔥 Okundu: turuncuyu kaldır
+                item.classList.remove("unread");
+
+                if (privateUnreadUsers.size === 0) {
+                    stopPrivateAlert();
+                }
+
+                document.querySelectorAll(".private-item").forEach(i => {
+                    i.classList.remove("active");
+                });
+
+                item.classList.add("active");
+
+                updatePrivateUI(nick);
+
+                privatePanel.classList.remove("active");
+
+                document.querySelector(".user-list")?.classList.add("hidden");
+
+                document.getElementById("messageInput")?.focus();
+            });
+
+        });
+    </script>
+
+    <script>
+        function updatePrivateBadge() {
+
+            const count = privateUnreadUsers.size;
+
+            const desktop = document.getElementById("privateBadgeDesktop");
+            const mobile = document.getElementById("privateBadgeMobile");
+
+            [desktop, mobile].forEach(el => {
+                if (!el) return;
+
+                if (count > 0) {
+                    el.textContent = count;
+                    el.classList.add("show");
+                } else {
+                    el.classList.remove("show");
+                }
+            });
+        }
+    </script>
+
+    <script>
+        document.getElementById("userListToggleBtn")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            const list = document.querySelector(".user-list");
+            if (!list) return;
+
+            list.classList.toggle("hidden");
+        });
+    </script>
+
+    <script>
+        // Kanal bar toggle
+        document.getElementById("channelBarToggleBtn")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            const bar = document.querySelector(".channel-bar-wrapper");
+            const icon = e.currentTarget.querySelector("i");
+
+            if (!bar || !icon) return;
+
+            bar.classList.toggle("hidden");
+
+            // 🔥 ikon değiştir
+            if (bar.classList.contains("hidden")) {
+                icon.className = "bi bi-chevron-down";
+            } else {
+                icon.className = "bi bi-chevron-up";
+            }
         });
 
-        spacer.appendChild(item);
-    });
-}
+        // Topic bar toggle
+        document.getElementById("topicBarToggleBtn")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            const topic = document.querySelector(".topic-bar");
+            const icon = e.currentTarget.querySelector("i");
+
+            if (!topic || !icon) return;
+
+            topic.classList.toggle("hidden");
+
+            // 🔥 ikon değiştir
+            if (topic.classList.contains("hidden")) {
+                icon.className = "bi bi-chevron-down";
+            } else {
+                icon.className = "bi bi-chevron-up";
+            }
+        });
+    </script>
+
+    <audio id="privateAlertSound" src="/sounds/private-message.mp3" preload="auto"></audio>
+
+    <script>
+        const privateAlertSound = document.getElementById("privateAlertSound");
+
+        function startPrivateAlert() {
+            document.getElementById("privateBtnDesktop")?.classList.add("private-alert");
+            document.getElementById("privateBtnMobile")?.classList.add("private-alert");
+        }
+
+        function stopPrivateAlert() {
+            document.getElementById("privateBtnDesktop")?.classList.remove("private-alert");
+            document.getElementById("privateBtnMobile")?.classList.remove("private-alert");
+        }
+
+        function playPrivateAlertOnce() {
+            if (!privateAlertSound) return;
+
+            privateAlertSound.pause();
+            privateAlertSound.currentTime = 0;
+
+            privateAlertSound.play().catch(() => {
+                console.log("Ses çalınamadı.");
+            });
+        }
+    </script>
+
+    <script>
+        let tabMatches = [];
+        let tabIndex = 0;
+        let tabQuery = "";
+        let tabStart = 0;
+        let tabEnd = 0;
+        let tabActive = false;
+
+        function resetTabComplete() {
+            tabMatches = [];
+            tabIndex = 0;
+            tabQuery = "";
+            tabStart = 0;
+            tabEnd = 0;
+            tabActive = false;
+        }
+
+        function getOpenChannels() {
+            return [...document.querySelectorAll(".channel-btn:not(.disabled) .channel-name")]
+                .map(x => x.textContent.trim())
+                .filter(x => x.startsWith("#"));
+        }
+
+        function handleTabComplete() {
+            const input = document.getElementById("messageInput");
+            if (!input) return;
+
+            const value = input.value;
+            const cursorPos = input.selectionStart;
+
+            if (!tabActive) {
+                const beforeCursor = value.substring(0, cursorPos);
+                const lastSpaceIndex = beforeCursor.lastIndexOf(" ");
+
+                tabStart = lastSpaceIndex + 1;
+                tabEnd = cursorPos;
+                tabQuery = value.substring(tabStart, tabEnd);
+
+                if (!tabQuery) return;
+
+                if (tabQuery.startsWith("#")) {
+                    tabMatches = getOpenChannels()
+                        .filter(channel =>
+                            channel.toLowerCase().startsWith(tabQuery.toLowerCase())
+                        );
+                }
+                else if (currentPrivateUser) {
+                    tabMatches = currentPrivateUser.toLowerCase().startsWith(tabQuery.toLowerCase())
+                        ? [currentPrivateUser]
+                        : [];
+                }
+                else {
+                    tabMatches = allUsers
+                        .filter(u => u.channels && u.channels.includes(currentChannel))
+                        .map(u => u.nick)
+                        .filter(nick =>
+                            nick.toLowerCase().startsWith(tabQuery.toLowerCase())
+                        );
+                }
+
+                tabIndex = 0;
+                tabActive = true;
+            } else {
+                if (tabMatches.length <= 1) return;
+                tabIndex = (tabIndex + 1) % tabMatches.length;
+            }
+
+            if (tabMatches.length === 0) return;
+
+            const selectedText = tabMatches[tabIndex];
+
+            const before = value.substring(0, tabStart);
+            const after = value.substring(tabEnd);
+
+            input.value = before + selectedText + after;
+
+            tabEnd = tabStart + selectedText.length;
+
+            input.setSelectionRange(tabEnd, tabEnd);
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const input = document.getElementById("messageInput");
+            const tabBtn = document.getElementById("tabCompleteBtn");
+
+            input?.addEventListener("keydown", (e) => {
+                if (e.key === "Tab") {
+                    e.preventDefault();
+                    handleTabComplete();
+                } else {
+                    resetTabComplete();
+                }
+            });
+
+            tabBtn?.addEventListener("click", () => {
+                handleTabComplete();
+                input?.focus();
+            });
+        });
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+
+            document.addEventListener("click", (e) => {
+                const target = e.target.closest(".private-mention-nick");
+                if (!target) return;
+
+                const nick = target.dataset.nick;
+
+                if (typeof openPrivate === "function") {
+                    openPrivate(nick);
+                }
+            });
+
+        });
+    </script>
+
+</body>
+
+</html>
