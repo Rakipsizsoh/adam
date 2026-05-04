@@ -273,6 +273,10 @@ namespace MyIRC.Web.Hubs
             await Clients.Caller
             .SendAsync("ReceivePrivateMessage", sender.Nick, target.Nick, message);
         }
+        public Task Ping()
+        {
+            return Clients.Caller.SendAsync("Pong", DateTime.UtcNow);
+        }
         public async Task ChangeNick(string newNick)
         {
             if (string.IsNullOrWhiteSpace(newNick))
