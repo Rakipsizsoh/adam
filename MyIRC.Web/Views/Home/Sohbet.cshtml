@@ -383,27 +383,23 @@
                 targetNick: null
             };
 
-            // 🔥 SADECE KANAL MODUNDAYKEN
-            if (!currentPrivateUser) {
-
-                if (!channelMessages[currentChannel]) {
-                    channelMessages[currentChannel] = [];
-                }
-
-                channelMessages[currentChannel].push(notice);
-
-                appendMessageToChat(
-                    notice.user,
-                    notice.message,
-                    notice.time,
-                    notice.type,
-                    notice.targetChannel,
-                    notice.targetNick
-                );
+            if (!channelMessages[currentChannel]) {
+                channelMessages[currentChannel] = [];
             }
+
+            channelMessages[currentChannel].push(notice);
+
+            appendMessageToChat(
+                notice.user,
+                notice.message,
+                notice.time,
+                notice.type,
+                notice.targetChannel,
+                notice.targetNick
+            );
         }
 
-        function appendMessageToChat(user, message, time, type, targetChannel, targetNick) {
+        function function appendMessageToChat(user, message, time, type, targetChannel, targetNick) {
             const container = document.getElementById("chatMessages");
 
             const div = document.createElement("div");
@@ -494,7 +490,15 @@
                     u.nick && u.nick.toLowerCase() === user.toLowerCase()
                 );
 
-                const roleInfo = messageUser
+                // 🔥 Özel sohbet ekranında prefix gösterme
+                const isPrivateChat =
+                    currentPrivateUser &&
+                    (
+                        user.toLowerCase() === currentPrivateUser.toLowerCase() ||
+                        user.toLowerCase() === currentUser.toLowerCase()
+                    );
+
+                const roleInfo = !isPrivateChat && messageUser
                     ? getRoleInfo(messageUser, currentChannel)
                     : { prefix: "" };
 
