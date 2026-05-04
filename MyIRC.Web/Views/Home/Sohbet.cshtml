@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = null;
     var nick = ViewBag.Nick as string ?? "RSohbet";
     var password = ViewBag.Password as string ?? "";
@@ -33,6 +33,9 @@
         let currentChannel = null;
         let allUsers = [];
         let channelMessages = {};
+
+        // 🔥 Reconnect sonrası açık kanalları geri yüklemek için
+        let joinedChannels = new Set();
 
         let currentPrivateUser = null;
         let privateMessages = {};
@@ -298,9 +301,22 @@
 
 
     <script>
-        const connection = new signalR.HubConnectionBuilder()
-            .withUrl("/chatHub?nick=" + encodeURIComponent(currentUser))
-            .build();
+            const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/chatHub?nick=" + encodeURIComponent(currentUser))
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .build();
+
+                connection.onreconnecting(() => {
+            console.log("Bağlantı koptu...");
+        });
+
+                               connection.onreconnected(async () => {
+            console.log("Yeniden bağlandı");
+
+            for (const ch of joinedChannels) {
+                await connection.invoke("JoinChannel", ch);
+            }
+        });
 
         function getNickColor(nick) {
             const colors = [
@@ -491,9 +507,31 @@
                 time: time
             });
 
+            // 🔥 Özel sohbet açıksa kanal mesajını özel pencereye basma
+            if (currentPrivateUser) {
+
+                if (user === "Sistem") {
+                    markChannelUnread(channel);
+                    return;
+                }
+
+                const msg = message.toLowerCase();
+                const nick = currentUser.toLowerCase();
+
+                const isMention = msg.includes("\u0040" + nick) || msg.includes(nick);
+
+                if (isMention) {
+                    markChannelMention(channel);
+                    appendMentionNotice(user, channel);
+                } else {
+                    markChannelUnread(channel);
+                }
+
+                return;
+            }
+
             if (channel !== currentChannel) {
 
-                // Sistem mesajları mention sayılmasın
                 if (user === "Sistem") {
                     markChannelUnread(channel);
                     return;
@@ -539,12 +577,10 @@
             // 🔥 Eğer açık değilse unread say
             if (currentPrivateUser !== chatUser) {
 
-                // Bu kullanıcı zaten okunmamış mıydı?
                 const wasUnread = privateUnreadUsers.has(chatUser);
 
                 privateUnreadUsers.add(chatUser);
 
-                // listeye ekle (AMA pencere açma)
                 const privateList = document.querySelector(".private-list");
                 const exists = privateList.querySelector(`[data-nick="${chatUser}"]`);
 
@@ -554,9 +590,9 @@
                     item.dataset.nick = chatUser;
 
                     item.innerHTML = `
-                <div class="private-left">${chatUser}</div>
-                <button class="private-close-btn">✖</button>
-            `;
+                        <div class="private-left">${chatUser}</div>
+                        <button class="private-close-btn">✖</button>
+                    `;
 
                     privateList.appendChild(item);
                 } else {
@@ -566,8 +602,9 @@
                 updatePrivateBadge();
                 startPrivateAlert();
 
-                // 🔔 Sadece ilk okunmamış mesajda 1 defa ses çal
+                // 🔥 Sadece ilk okunmamış özel mesajda bildirim + ses
                 if (!wasUnread) {
+                    appendPrivateMentionNotice(chatUser);
                     playPrivateAlertOnce();
                 }
 
@@ -576,6 +613,36 @@
 
             appendMessageToChat(fromUser, message, time);
         });
+
+        function appendPrivateMentionNotice(fromUser) {
+
+            // 🔥 KRİTİK: özel sohbet açıksa bildirim basma
+            if (currentPrivateUser) return;
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const container = document.getElementById("chatMessages");
+
+            const div = document.createElement("div");
+            div.classList.add("msg-line", "system-msg");
+
+            div.innerHTML = `
+                <span class="msg-time">${time}</span>
+                <span class="msg-text">
+                    Sistem: 🔔
+                    <span class="private-mention-nick" data-nick="${fromUser}">
+                        ${fromUser}
+                    </span>
+                    özelden size sesleniyor.
+                </span>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
 
         connection.on("ReceiveUserList", (channel, users) => {
 
@@ -725,20 +792,17 @@
                 x.nick && x.nick.toLowerCase() === nick.toLowerCase()
             );
 
-            if (!user) {
-                allUsers = allUsers.filter(x =>
-                    x.nick && x.nick.toLowerCase() !== nick.toLowerCase()
+            if (user) {
+                user.channels = user.channels.filter(x =>
+                    x.toLowerCase() !== channel.toLowerCase()
                 );
 
-                renderUserList();
-                return;
-            }
-
-            user.channels = user.channels.filter(x =>
-                x.toLowerCase() !== channel.toLowerCase()
-            );
-
-            if (user.channels.length === 0) {
+                if (user.channels.length === 0) {
+                    allUsers = allUsers.filter(x =>
+                        x.nick && x.nick.toLowerCase() !== nick.toLowerCase()
+                    );
+                }
+            } else {
                 allUsers = allUsers.filter(x =>
                     x.nick && x.nick.toLowerCase() !== nick.toLowerCase()
                 );
@@ -746,12 +810,17 @@
 
             renderUserList();
 
+            // 🔥 Özel sohbet açıksa kanala dönme
             if (currentPrivateUser && typeof updatePrivateUI === "function") {
                 updatePrivateUI(currentPrivateUser);
+                return;
             }
         });
 
         connection.on("ReceiveTopicInfo", (channel, count, modes, topic, link) => {
+
+            // 🔥 Özel sohbet açıksa kanal topic bilgisini basma
+            if (currentPrivateUser) return;
 
             if (channel !== currentChannel) return;
 
@@ -773,33 +842,13 @@
         });
 
         connection.on("SetActiveChannel", (channelName) => {
-            currentChannel = channelName;
-
-            document.querySelector(".topic-left").textContent = channelName;
-        });
-
-        connection.on("ForceSwitchChannel", (channelName) => {
-
-            currentChannel = channelName;
-
-            document.querySelectorAll(".channel-btn").forEach(btn => {
-                btn.classList.remove("active");
-
-                const name = btn.querySelector(".channel-name")?.textContent?.trim();
-
-                if (name === channelName) {
-                    btn.classList.add("active");
-                    btn.classList.remove("unread");
-                }
-            });
-
-            document.querySelector(".topic-left").textContent = channelName;
-
-            renderChannelMessages(channelName);
-            renderUserList();
+            switchToChannel(channelName);
         });
 
         connection.on("ChannelJoined", (channelName) => {
+
+            // 🔥 Reconnect için açık kanalı hafızada tut
+            joinedChannels.add(channelName);
 
             const bar = document.getElementById("channelBar");
             if (!bar) return;
@@ -837,6 +886,9 @@
         });
 
         connection.on("ChannelParted", (channelName) => {
+
+            // 🔥 Reconnect için ayrıldığı kanalı hafızadan sil
+            joinedChannels.delete(channelName);
 
             const bar = document.getElementById("channelBar");
             if (!bar) return;
@@ -1508,6 +1560,23 @@
                 handleTabComplete();
                 input?.focus();
             });
+        });
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+
+            document.addEventListener("click", (e) => {
+                const target = e.target.closest(".private-mention-nick");
+                if (!target) return;
+
+                const nick = target.dataset.nick;
+
+                if (typeof openPrivate === "function") {
+                    openPrivate(nick);
+                }
+            });
+
         });
     </script>
 
