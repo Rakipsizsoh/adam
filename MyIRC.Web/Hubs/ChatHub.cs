@@ -1,4 +1,4 @@
-﻿// ChatHub.cs
+// ChatHub.cs
 
 using Microsoft.AspNetCore.SignalR;
 using MyIRC.Application.Interfaces.Repositories;
@@ -687,12 +687,12 @@ namespace MyIRC.Web.Hubs
 
             var existingUser = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
 
-            // 🔥 ZATEN KANALDAYSA
+            // 🔥 ZATEN KANALDAYSA SADECE AKTİF KANALI DEĞİŞTİR
             if (existingUser != null && existingUser.Channels.Contains(channelName))
             {
                 existingUser.CurrentChannel = channelName;
 
-                await Clients.Caller.SendAsync("ForceSwitchChannel", channelName);
+                await Clients.Caller.SendAsync("SetActiveChannel", channelName);
 
                 await SendChannelTopicInfo(channelName);
 
@@ -701,6 +701,9 @@ namespace MyIRC.Web.Hubs
 
             if (!_channelService.Join(Context.ConnectionId, channelName, out var user) || user == null)
                 return;
+
+            // 🔥 /join sonrası backend aktif kanal
+            user.CurrentChannel = channelName;
 
             var registeredChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
 
@@ -716,6 +719,9 @@ namespace MyIRC.Web.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, channelName);
 
             await Clients.Caller.SendAsync("ChannelJoined", channelName);
+
+            // 🔥 /join sonrası frontend aktif kanal
+            await Clients.Caller.SendAsync("SetActiveChannel", channelName);
 
             await SendUserListToCaller(channelName);
 
@@ -751,9 +757,10 @@ namespace MyIRC.Web.Hubs
                 channelName
             );
 
+            // 🔥 ForceSwitchChannel kalktı, artık SetActiveChannel kullanıyoruz
             if (user.CurrentChannel != channelName)
             {
-                await Clients.Caller.SendAsync("ForceSwitchChannel", user.CurrentChannel);
+                await Clients.Caller.SendAsync("SetActiveChannel", user.CurrentChannel);
             }
 
             await SendChannelTopicInfo(channelName);
