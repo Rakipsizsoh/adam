@@ -729,6 +729,18 @@ namespace MyIRC.Web.Hubs
 
             await SendUserListToCaller(channelName);
 
+            // 🔥 KRİTİK: Kanaldaki herkese yeni kullanıcıyı bildir
+            var role = user.ChannelRoles.ContainsKey(channelName)
+                ? (int)user.ChannelRoles[channelName]
+                : (int)ChannelRole.User;
+
+            await Clients.Group(channelName).SendAsync(
+                "ReceiveUserJoined",
+                channelName,
+                user.Nick,
+                role
+            );
+
             await Clients.Group(channelName)
                 .SendAsync("ReceiveMessage", "Sistem", $"{user.Nick} → {channelName} kanalına katıldı.", channelName);
 
