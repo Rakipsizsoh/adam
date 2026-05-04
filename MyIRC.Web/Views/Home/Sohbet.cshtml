@@ -1,7 +1,7 @@
 @{
-Layout = null;
-var nick = ViewBag.Nick as string ?? "RSohbet";
-var password = ViewBag.Password as string ?? "";
+    Layout = null;
+    var nick = ViewBag.Nick as string ?? "RSohbet";
+    var password = ViewBag.Password as string ?? "";
 }
 
 <!DOCTYPE html>
@@ -317,6 +317,18 @@ var password = ViewBag.Password as string ?? "";
                 await connection.invoke("JoinChannel", ch);
             }
         });
+
+        connection.on("Pong", (serverTime) => {
+            console.log("Pong:", serverTime);
+        });
+
+        setInterval(() => {
+            if (connection.state === signalR.HubConnectionState.Connected) {
+                connection.invoke("Ping").catch(() => {
+                    console.log("Ping gönderilemedi.");
+                });
+            }
+        }, 30000);
 
         function getNickColor(nick) {
             const colors = [
@@ -649,7 +661,8 @@ var password = ViewBag.Password as string ?? "";
 
         function appendPrivateMentionNotice(fromUser) {
 
-            if (currentPrivateUser) return;
+            // 🔥 SADECE AYNI KİŞİYLE ÖZEL AÇIKSA sustur
+            if (currentPrivateUser === fromUser) return;
 
             const time = new Date().toLocaleTimeString([], {
                 hour: '2-digit',
