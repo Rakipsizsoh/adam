@@ -367,7 +367,8 @@
                 message: `${currentUser} ← ${fromUser} : 🔔 ${channelName} kanalında size seslendi.`,
                 time: time,
                 type: "mentionNotice",
-                targetChannel: channelName
+                targetChannel: channelName,
+                targetNick: null
             };
 
             // 🔥 SADECE KANAL MODUNDAYKEN
@@ -384,17 +385,19 @@
                     notice.message,
                     notice.time,
                     notice.type,
-                    notice.targetChannel
+                    notice.targetChannel,
+                    notice.targetNick
                 );
             }
         }
 
-        function appendMessageToChat(user, message, time, type, targetChannel) {
+        function appendMessageToChat(user, message, time, type, targetChannel, targetNick) {
             const container = document.getElementById("chatMessages");
 
             const div = document.createElement("div");
             div.classList.add("msg-line");
 
+            // 🔥 KANAL MENTION (tıklanabilir)
             if (type === "mentionNotice") {
                 div.classList.add("system-msg");
 
@@ -414,6 +417,27 @@
                 return;
             }
 
+            // 🔥 ÖZEL MENTION (tıklanabilir + kalıcı)
+            if (type === "privateMentionNotice") {
+                div.classList.add("system-msg");
+
+                div.innerHTML = `
+                    <span class="msg-time">${time}</span>
+                    <span class="msg-text">
+                        Sistem: 🔔
+                        <span class="private-mention-nick" data-nick="${targetNick}">
+                            ${targetNick}
+                        </span>
+                        özelden size sesleniyor.
+                    </span>
+                `;
+
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+                return;
+            }
+
+            // 🔥 SİSTEM MESAJLARI
             if (user === "Sistem" || user === "NickServ" || user === "ChanServ") {
 
                 let typeClass = "system-default";
@@ -446,6 +470,8 @@
                     <span class="msg-text">${user}: ${message}</span>
                 `;
             }
+
+            // 🔥 NORMAL MESAJ
             else {
                 const msg = message.toLowerCase();
                 const nick = currentUser.toLowerCase();
@@ -485,7 +511,14 @@
             const messages = channelMessages[channelName] || [];
 
             messages.forEach(item => {
-                appendMessageToChat(item.user, item.message, item.time);
+                appendMessageToChat(
+                    item.user,
+                    item.message,
+                    item.time,
+                    item.type,
+                    item.targetChannel,
+                    item.targetNick
+                );
             });
 
             container.scrollTop = container.scrollHeight;
@@ -955,11 +988,17 @@
                 const message = input.value.trim();
                 if (!message) return;
 
-                // 🔥 TÜM KOMUTLAR BACKEND'E
+                // 🔥 KOMUTSA HER ZAMAN BACKEND'E (private fark etmez)
+                if (message.startsWith("/")) {
+                    connection.invoke("SendMessage", currentUser, message, currentChannel);
+                    input.value = "";
+                    return;
+                }
+
+                // 🔥 NORMAL MESAJ
                 if (currentPrivateUser) {
                     sendPrivateMessage(currentPrivateUser, message);
                 } else {
-                    // ✅ KRİTİK DÜZELTME
                     connection.invoke("SendMessage", currentUser, message, currentChannel);
                 }
 
