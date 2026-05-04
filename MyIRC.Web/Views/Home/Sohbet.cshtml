@@ -1,7 +1,7 @@
 @{
-    Layout = null;
-    var nick = ViewBag.Nick as string ?? "RSohbet";
-    var password = ViewBag.Password as string ?? "";
+Layout = null;
+var nick = ViewBag.Nick as string ?? "RSohbet";
+var password = ViewBag.Password as string ?? "";
 }
 
 <!DOCTYPE html>
@@ -301,16 +301,16 @@
 
 
     <script>
-            const connection = new signalR.HubConnectionBuilder()
-        .withUrl("/chatHub?nick=" + encodeURIComponent(currentUser))
-        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-        .build();
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/chatHub?nick=" + encodeURIComponent(currentUser))
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .build();
 
-                connection.onreconnecting(() => {
+        connection.onreconnecting(() => {
             console.log("Bağlantı koptu...");
         });
 
-                               connection.onreconnected(async () => {
+        connection.onreconnected(async () => {
             console.log("Yeniden bağlandı");
 
             for (const ch of joinedChannels) {
@@ -397,20 +397,20 @@
             const div = document.createElement("div");
             div.classList.add("msg-line");
 
-            // 🔥 KANAL MENTION (tıklanabilir)
+            // 🔥 KANAL MENTION (tıklanabilir + kalıcı)
             if (type === "mentionNotice") {
                 div.classList.add("system-msg");
 
                 div.innerHTML = `
-                    <span class="msg-time">${time}</span>
-                    <span class="msg-text">
-                        ${message.split(" : 🔔 ")[0]} : 🔔
-                        <span class="mention-channel" data-channel="${targetChannel}">
-                            ${targetChannel}
-                        </span>
-                        kanalında size seslendi.
+                <span class="msg-time">${time}</span>
+                <span class="msg-text">
+                    Sistem: 🔔
+                    <span class="mention-channel" data-channel="${targetChannel}">
+                        ${targetChannel}
                     </span>
-                `;
+                    kanalında size seslendi.
+                </span>
+            `;
 
                 container.appendChild(div);
                 container.scrollTop = container.scrollHeight;
@@ -649,7 +649,6 @@
 
         function appendPrivateMentionNotice(fromUser) {
 
-            // 🔥 KRİTİK: özel sohbet açıksa bildirim basma
             if (currentPrivateUser) return;
 
             const time = new Date().toLocaleTimeString([], {
@@ -657,24 +656,28 @@
                 minute: '2-digit'
             });
 
-            const container = document.getElementById("chatMessages");
+            const notice = {
+                user: "Sistem",
+                message: `🔔 ${fromUser} özelden size sesleniyor.`,
+                time: time,
+                type: "privateMentionNotice",
+                targetNick: fromUser
+            };
 
-            const div = document.createElement("div");
-            div.classList.add("msg-line", "system-msg");
+            if (!channelMessages[currentChannel]) {
+                channelMessages[currentChannel] = [];
+            }
 
-            div.innerHTML = `
-                <span class="msg-time">${time}</span>
-                <span class="msg-text">
-                    Sistem: 🔔
-                    <span class="private-mention-nick" data-nick="${fromUser}">
-                        ${fromUser}
-                    </span>
-                    özelden size sesleniyor.
-                </span>
-            `;
+            channelMessages[currentChannel].push(notice);
 
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            appendMessageToChat(
+                notice.user,
+                notice.message,
+                notice.time,
+                notice.type,
+                null,
+                notice.targetNick
+            );
         }
 
         connection.on("ReceiveUserList", (channel, users) => {
@@ -783,7 +786,7 @@
         });
 
         connection.on("ReceiveUserRoleChanged", (channel, nick, role) => {
-                    console.log("ROLE UPDATE:", nick, channel, role);
+            console.log("ROLE UPDATE:", nick, channel, role);
 
             let user = allUsers.find(x =>
                 (x.nick || x.Nick)?.toLowerCase() === nick.toLowerCase()
