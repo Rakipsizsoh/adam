@@ -2,6 +2,7 @@
     Layout = null;
     var nick = ViewBag.Nick as string ?? "RSohbet";
     var password = ViewBag.Password as string ?? "";
+    var identifyNick = ViewBag.IdentifyNick as string ?? "";
 }
 
 <!DOCTYPE html>
@@ -30,6 +31,7 @@
     <script>
         let currentUser = "@nick";
         let loginPassword = "@password";
+        let identifyNick = "@identifyNick";
         let currentChannel = null;
         let allUsers = [];
         let channelMessages = {};
@@ -136,7 +138,7 @@
             <div class="channel-bar" id="channelBar">
 
                 <!-- 🔥 STATUS (pasif / sistem) -->
-                <div class="channel-btn disabled">
+                <div class="channel-btn">
                     <span class="channel-name">Status</span>
                 </div>
 
@@ -398,7 +400,7 @@
                 notice.targetNick
             );
         }
-
+        
         function appendMessageToChat(user, message, time, type, targetChannel, targetNick) {
             const container = document.getElementById("chatMessages");
 
@@ -424,6 +426,22 @@
                 container.scrollTop = container.scrollHeight;
                 return;
             }
+
+                // 🔥 CHANNEL NOTICE (kalıcı + ayrı görünüm)
+        if (type === "notice") {
+            div.classList.add("system-msg", "system-notice");
+
+            div.innerHTML = `
+                <span class="msg-time">${time}</span>
+                <span class="msg-text">
+                    Notice: ${user}: ${message}
+                </span>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return;
+        }
 
             // 🔥 ÖZEL MENTION (tıklanabilir + kalıcı)
             if (type === "privateMentionNotice") {
@@ -571,7 +589,7 @@
 
                 if (isMention) {
                     markChannelMention(channel);
-                    appendMentionNotice(user, channel);
+                    // appendMentionNotice BURADA YOK
                 } else {
                     markChannelUnread(channel);
                 }
@@ -697,11 +715,87 @@
             );
         }
 
+        connection.on("ReceiveNotice", (user, message, channel) => {
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            if (!channelMessages[channel]) {
+                channelMessages[channel] = [];
+            }
+
+            channelMessages[channel].push({
+                user: user,
+                message: message,
+                time: time,
+                type: "notice",
+                targetChannel: channel,
+                targetNick: null
+            });
+
+            if (!currentPrivateUser && currentChannel === channel) {
+                appendMessageToChat(
+                    user,
+                    message,
+                    time,
+                    "notice",
+                    channel,
+                    null
+                );
+            } else {
+                markChannelUnread(channel);
+            }
+        });
+
+        connection.on("ReceivePrivateNotice", (fromNick, targetNick, message, isSender) => {
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const text = isSender
+                ? `${fromNick} → ${targetNick} : ${message}`
+                : `${targetNick} ← ${fromNick} : ${message}`;
+
+            const targetWindow = "Status";
+
+            if (!channelMessages[targetWindow]) {
+                channelMessages[targetWindow] = [];
+            }
+
+                    channelMessages[targetWindow].push({
+            user: "Notice",
+            message: text,
+            time: time,
+            type: "notice",
+            targetChannel: targetWindow,
+            targetNick: null
+        });
+
+            if (!currentPrivateUser && currentChannel === targetWindow) {
+                appendMessageToChat("Notice", text, time, "notice", targetWindow, null);
+            }
+        });
+
         connection.on("ReceiveUserList", (channel, users) => {
 
-            // 🔥 O kanalın eski kullanıcılarını temizle
+            // 🔥 Sadece bu kanal bilgisini temizle, kullanıcıyı komple silme
+            allUsers.forEach(u => {
+                if (u.channels) {
+                    u.channels = u.channels.filter(ch => ch !== channel);
+                }
+
+                if (u.channelRoles) {
+                    delete u.channelRoles[channel];
+                }
+            });
+
+            // 🔥 Hiç kanalı kalmayanları temizle
             allUsers = allUsers.filter(u =>
-                !(u.channels && u.channels.includes(channel))
+                u.channels && u.channels.length > 0
             );
 
             users.forEach(u => {
@@ -727,7 +821,6 @@
                 existing.channelRoles[channel] = u.role;
             });
 
-            // 🔥 aktif kanal ise render
             if (channel === currentChannel) {
                 renderUserList();
             }
@@ -973,6 +1066,38 @@
             }
         });
 
+        connection.on("ReceiveInviteNotice", (fromNick, channelName) => {
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const notice = {
+                user: "Sistem",
+                message: `${fromNick} sizi ${channelName} kanalına davet ediyor.`,
+                time: time,
+                type: "inviteNotice",
+                targetChannel: channelName,
+                targetNick: fromNick
+            };
+
+            if (!channelMessages[currentChannel]) {
+                channelMessages[currentChannel] = [];
+            }
+
+            channelMessages[currentChannel].push(notice);
+
+            appendMessageToChat(
+                notice.user,
+                notice.message,
+                notice.time,
+                notice.type,
+                notice.targetChannel,
+                notice.targetNick
+            );
+        });
+
         function joinChannel(channelName) {
             connection.invoke("JoinChannel", channelName);
         }
@@ -989,9 +1114,9 @@
             .then(() => {
                 console.log("SignalR bağlantısı başarılı.");
 
-                if (loginPassword && loginPassword.trim() !== "") {
-                    connection.invoke("IdentifyNick", loginPassword);
-                }
+                        if (identifyNick && loginPassword && loginPassword.trim() !== "") {
+            connection.invoke("IdentifyNick", identifyNick, loginPassword);
+        }
             })
             .catch(err => {
                 console.error("SignalR bağlantı hatası:", err);
@@ -1008,9 +1133,24 @@
                 const message = input.value.trim();
                 if (!message) return;
 
-                // 🔥 KOMUTSA HER ZAMAN BACKEND'E (private fark etmez)
+                // 🔥 KOMUTSA HER ZAMAN BACKEND'E
                 if (message.startsWith("/")) {
                     connection.invoke("SendMessage", currentUser, message, currentChannel);
+                    input.value = "";
+                    return;
+                }
+
+                // 🔥 STATUS PENCERESİNDE NORMAL MESAJ YAZILAMAZ
+                if (currentChannel === "Status") {
+                    appendMessageToChat(
+                        "Sistem",
+                        "Status penceresinde sadece komut yazabilirsiniz.",
+                        new Date().toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })
+                    );
+
                     input.value = "";
                     return;
                 }
@@ -1141,9 +1281,9 @@
 
         function switchToChannel(channelName) {
 
-            if (!channelName || !channelName.startsWith("#")) {
-                return;
-            }
+                    if (!channelName) {
+            return;
+        }
 
             const bar = document.getElementById("channelBar");
             if (!bar) return;
