@@ -76,12 +76,42 @@ namespace MyIRC.Web.Hubs
                 {
                     case "/join":
                         if (parts.Length > 1)
-                            await JoinChannel(parts[1]);
+                        {
+                            var channelName = NormalizeChannelName(parts[1]);
+                            var key = parts.Length >= 3 ? parts[2] : null;
+
+                            var userForJoin = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
+                            var beforeJoinCount = userForJoin?.Channels.Count ?? 0;
+
+                            await JoinChannel(channelName, key);
+
+                            var afterJoinUser = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
+
+                            if (afterJoinUser != null && afterJoinUser.Channels.Count > beforeJoinCount)
+                            {
+                                afterJoinUser.CurrentChannel = channelName;
+                                await Clients.Caller.SendAsync("SetActiveChannel", channelName);
+                                await SendChannelTopicInfo(channelName);
+                            }
+                        }
                         return;
 
                     case "/part":
                         if (parts.Length > 1)
                             await PartChannel(parts[1]);
+                        return;
+
+                    case "/notice":
+                        if (parts.Length > 2)
+                        {
+                            var target = parts[1];
+                            var msgText = string.Join(" ", parts.Skip(2));
+
+                            if (target.StartsWith("#"))
+                                await SendChannelNotice(target, msgText);
+                            else
+                                await SendPrivateNotice(target, msgText);
+                        }
                         return;
 
                     case "/quit":
@@ -124,8 +154,36 @@ namespace MyIRC.Web.Hubs
                     case "/mode":
                         if (parts.Length >= 3)
                         {
-                            var targetNick = parts.Length >= 4 ? parts[3] : null;
-                            await SetChannelMode(parts[1], parts[2], targetNick);
+                            var modeText = parts[2];
+                            string? targetNick = null;
+
+                            if (modeText == "+k" && parts.Length >= 4)
+                            {
+                                modeText = $"+k {parts[3]}";
+                            }
+                            else if (modeText == "+l" && parts.Length >= 4)
+                            {
+                                modeText = $"+l {parts[3]}";
+                            }
+                            else if (
+                                modeText != "+k" &&
+                                modeText != "-k" &&
+                                modeText != "+l" &&
+                                modeText != "-l" &&
+                                parts.Length >= 4
+                            )
+                            {
+                                targetNick = parts[3];
+                            }
+
+                            await SetChannelMode(parts[1], modeText, targetNick);
+                        }
+                        return;
+
+                    case "/invite":
+                        if (parts.Length >= 3)
+                        {
+                            await InviteUser(parts[1], parts[2]);
                         }
                         return;
 
@@ -136,10 +194,23 @@ namespace MyIRC.Web.Hubs
 
                     case "/ns":
                     case "/nickserv":
-                        if (parts.Length >= 3 && parts[1].Equals("identify", StringComparison.OrdinalIgnoreCase))
-                            await IdentifyNick(parts[2]);
-                        else if (parts.Length >= 4 && parts[1].Equals("register", StringComparison.OrdinalIgnoreCase))
+                        if (parts.Length >= 4 && parts[1].Equals("identify", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await IdentifyNick(parts[2], parts[3]);
+                        }
+                        else if (parts.Length >= 3 && parts[1].Equals("register", StringComparison.OrdinalIgnoreCase))
+                        {
                             await RegisterNick(parts[2], parts[3]);
+                        }
+                        else
+                        {
+                            await Clients.Caller.SendAsync(
+                                "ReceiveMessage",
+                                "NickServ",
+                                "Kullanım: /ns identify nick şifre | /ns register şifre email",
+                                _onlineUserStore.GetByConnectionId(Context.ConnectionId)?.CurrentChannel
+                            );
+                        }
                         return;
 
                     case "/cs":
@@ -273,9 +344,92 @@ namespace MyIRC.Web.Hubs
             await Clients.Caller
             .SendAsync("ReceivePrivateMessage", sender.Nick, target.Nick, message);
         }
+        public async Task SendPrivateNotice(string targetNick, string message)
+        {
+            var sender = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
+            if (sender == null) return;
+
+            if (string.IsNullOrWhiteSpace(targetNick) || string.IsNullOrWhiteSpace(message))
+                return;
+
+            if (message.Length > 500)
+                message = message.Substring(0, 500);
+
+            var target = _onlineUserStore.GetByNick(targetNick);
+
+            if (target == null)
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    $"{targetNick} çevrimdışı.",
+                    sender.CurrentChannel
+                );
+                return;
+            }
+
+            // 🔥 Gönderen kendi bulunduğu pencerede görür
+            await Clients.Caller.SendAsync(
+                "ReceivePrivateNotice",
+                sender.Nick,
+                target.Nick,
+                message,
+                true
+            );
+
+            // 🔥 Hedef kendi bulunduğu pencerede görür
+            await Clients.Client(target.ConnectionId).SendAsync(
+                "ReceivePrivateNotice",
+                sender.Nick,
+                target.Nick,
+                message,
+                false
+            );
+        }
         public Task Ping()
         {
             return Clients.Caller.SendAsync("Pong", DateTime.UtcNow);
+        }
+        public async Task SendChannelNotice(string channelName, string message)
+        {
+            var user = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
+            if (user == null) return;
+
+            channelName = NormalizeChannelName(channelName);
+
+            var dbChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
+
+            var modes = (dbChannel?.Modes ?? _onlineUserStore.GetChannelModes(channelName))
+                .Replace("+", "");
+
+            // 🔥 +n kontrol (kanalda değilse gönderemez)
+            if (!user.Channels.Contains(channelName) && modes.Contains("n"))
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    $"{channelName} kanalına dışarıdan notice gönderemezsiniz (+n).",
+                    user.CurrentChannel
+                );
+                return;
+            }
+
+            // 🔥 +T kontrol (ileride aktif olacak)
+            if (modes.Contains("T"))
+            {
+                await SendSystemAndStatus(
+                    $"{channelName} kanalı notice kabul etmiyor (+T).",
+                    user.CurrentChannel
+                );
+                return;
+            }
+
+            await Clients.Group(channelName).SendAsync(
+                "ReceiveNotice",
+                user.Nick,
+                message,
+                channelName
+            );
         }
         public async Task ChangeNick(string newNick)
         {
@@ -408,18 +562,25 @@ namespace MyIRC.Web.Hubs
             user.CurrentChannel
             );
         }
-        public async Task IdentifyNick(string password)
+        public async Task IdentifyNick(string nick, string password)
         {
             var user = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
 
             if (user == null)
                 return;
 
-            var nickToIdentify = user.IsNickProtectedGuest && !string.IsNullOrWhiteSpace(user.ProtectedNick)
-                ? user.ProtectedNick
-                : user.Nick;
+            if (string.IsNullOrWhiteSpace(nick) || string.IsNullOrWhiteSpace(password))
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "NickServ",
+                    "Kullanım: /ns identify nick şifre",
+                    user.CurrentChannel
+                );
+                return;
+            }
 
-            var result = await _nickServ.IdentifyAsync(nickToIdentify, password);
+            var result = await _nickServ.IdentifyAsync(nick, password);
 
             if (!result.Success)
             {
@@ -462,7 +623,6 @@ namespace MyIRC.Web.Hubs
                 return;
             }
 
-            // ✅ BAŞARILI IDENTIFY
             if (result.User != null)
             {
                 user.IsIdentified = true;
@@ -475,7 +635,6 @@ namespace MyIRC.Web.Hubs
                 user.IdentifyTimerId = null;
                 user.IdentifyFailedAttempts = 0;
 
-                // 🔥 FOUNDER ROLE CHECK
                 foreach (var channel in user.Channels)
                 {
                     var registeredChannel = await _channelRegistrationRepository.GetByChannelAsync(channel);
@@ -491,30 +650,29 @@ namespace MyIRC.Web.Hubs
                             user.Nick,
                             (int)ChannelRole.Founder
                         );
+
+                        await AnnounceFounderOnlineIfNeeded(user, channel);
                     }
                 }
 
-                // 🔥 NICK GERİ ALMA (KRİTİK FIX)
                 if (user.IsNickProtectedGuest && !string.IsNullOrWhiteSpace(user.ProtectedNick))
                 {
                     var oldNick = user.Nick;
                     var reclaimedNick = user.ProtectedNick;
 
-                    if (!_onlineUserStore.NickExists(reclaimedNick))
+                    if (string.Equals(reclaimedNick, result.User.Nick, StringComparison.OrdinalIgnoreCase) &&
+                        !_onlineUserStore.NickExists(reclaimedNick))
                     {
-                        // 🔥 INDEX UPDATE (ÇOK KRİTİK)
                         _onlineUserStore.UpdateNickIndex(user.ConnectionId, oldNick, reclaimedNick);
 
                         user.Nick = reclaimedNick;
                         user.IsNickProtectedGuest = false;
                         user.ProtectedNick = null;
 
-                        // 🔥 KENDİ CLIENT
                         await Clients.Caller.SendAsync("SetNick", user.Nick);
 
                         foreach (var channel in user.Channels)
                         {
-                            // 🔥 EN KRİTİK EVENT
                             await Clients.Group(channel).SendAsync(
                                 "ReceiveNickChanged",
                                 oldNick,
@@ -682,7 +840,7 @@ namespace MyIRC.Web.Hubs
                 users
             );
         }
-        public async Task JoinChannel(string channelName)
+        public async Task JoinChannel(string channelName, string? key = null)
         {
             if (string.IsNullOrWhiteSpace(channelName))
                 return;
@@ -691,25 +849,77 @@ namespace MyIRC.Web.Hubs
 
             var existingUser = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
 
-            // 🔥 ZATEN KANALDAYSA SADECE AKTİF KANALI DEĞİŞTİR
+            // 🔥 ZATEN KANALDAYSA SADECE TOPIC / USERLIST GÜNCELLE
             if (existingUser != null && existingUser.Channels.Contains(channelName))
             {
-                existingUser.CurrentChannel = channelName;
-
-                await Clients.Caller.SendAsync("SetActiveChannel", channelName);
-
+                await SendUserListToCaller(channelName);
                 await SendChannelTopicInfo(channelName);
-
                 return;
+            }
+
+            var registeredChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
+
+            var channelModes = registeredChannel?.Modes
+                ?? _onlineUserStore.GetChannelModes(channelName);
+
+            var cleanModes = channelModes.Replace("+", "");
+
+            // 🔥 +i KONTROL
+            if (cleanModes.Contains("i"))
+            {
+                var isInvited = existingUser != null &&
+                                _onlineUserStore.IsUserInvited(channelName, existingUser.Nick);
+
+                if (!isInvited)
+                {
+                    await SendSystemAndStatus(
+    $"{channelName} kanalı +i modunda. Davetli değilsiniz.",
+    existingUser?.CurrentChannel
+);
+                    return;
+                }
+
+                _onlineUserStore.RemoveInvite(channelName, existingUser!.Nick);
+            }
+
+            // 🔥 +k KONTROL
+            if (cleanModes.Contains("k"))
+            {
+                var channelKey = registeredChannel?.ChannelKey
+                    ?? _onlineUserStore.GetChannelKey(channelName);
+
+                if (string.IsNullOrWhiteSpace(channelKey) ||
+                    string.IsNullOrWhiteSpace(key) ||
+                    channelKey != key)
+                {
+                    await SendSystemAndStatus(
+    $"{channelName} kanalı +k modunda. Giriş için: /join {channelName} şifre",
+    existingUser?.CurrentChannel
+);
+                    return;
+                }
+            }
+
+            // 🔥 +l KONTROL
+            if (cleanModes.Contains("l"))
+            {
+                var channelLimit = registeredChannel?.ChannelLimit
+                    ?? _onlineUserStore.GetChannelLimit(channelName);
+
+                var currentUserCount = _onlineUserStore.GetUsersInChannel(channelName).Count;
+
+                if (channelLimit.HasValue && currentUserCount >= channelLimit.Value)
+                {
+                    await SendSystemAndStatus(
+    $"{channelName} kanalı +l modunda. Limit: {channelLimit.Value}. Kanal dolu.",
+    existingUser?.CurrentChannel
+);
+                    return;
+                }
             }
 
             if (!_channelService.Join(Context.ConnectionId, channelName, out var user) || user == null)
                 return;
-
-            // 🔥 /join sonrası backend aktif kanal
-            user.CurrentChannel = channelName;
-
-            var registeredChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
 
             if (registeredChannel != null)
             {
@@ -724,12 +934,8 @@ namespace MyIRC.Web.Hubs
 
             await Clients.Caller.SendAsync("ChannelJoined", channelName);
 
-            // 🔥 /join sonrası frontend aktif kanal
-            await Clients.Caller.SendAsync("SetActiveChannel", channelName);
-
             await SendUserListToCaller(channelName);
 
-            // 🔥 KRİTİK: Kanaldaki herkese yeni kullanıcıyı bildir
             var role = user.ChannelRoles.ContainsKey(channelName)
                 ? (int)user.ChannelRoles[channelName]
                 : (int)ChannelRole.User;
@@ -741,8 +947,12 @@ namespace MyIRC.Web.Hubs
                 role
             );
 
-            await Clients.Group(channelName)
-                .SendAsync("ReceiveMessage", "Sistem", $"{user.Nick} → {channelName} kanalına katıldı.", channelName);
+            await Clients.Group(channelName).SendAsync(
+                "ReceiveMessage",
+                "Sistem",
+                $"{user.Nick} → {channelName} kanalına katıldı.",
+                channelName
+            );
 
             await SendChannelTopicInfo(channelName);
         }
@@ -750,9 +960,20 @@ namespace MyIRC.Web.Hubs
         {
             channelName = NormalizeChannelName(channelName);
 
+            var currentUser = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
+            if (currentUser == null)
+                return;
+
+            var wasActiveChannel = currentUser.CurrentChannel == channelName;
+
             if (!_channelService.Part(Context.ConnectionId, channelName, out var user) || user == null)
             {
-                await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", "En az bir kanalda kalmalısın.", "#Sohbet");
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    "En az bir kanalda kalmalısın.",
+                    currentUser.CurrentChannel
+                );
                 return;
             }
 
@@ -773,10 +994,20 @@ namespace MyIRC.Web.Hubs
                 channelName
             );
 
-            // 🔥 ForceSwitchChannel kalktı, artık SetActiveChannel kullanıyoruz
-            if (user.CurrentChannel != channelName)
+            // 🔥 Sadece aktif kanaldan çıktıysa yeni aktif kanal seç
+            if (wasActiveChannel)
             {
-                await Clients.Caller.SendAsync("SetActiveChannel", user.CurrentChannel);
+                var nextChannel = user.Channels.FirstOrDefault();
+
+                if (!string.IsNullOrWhiteSpace(nextChannel))
+                {
+                    user.CurrentChannel = nextChannel;
+
+                    await Clients.Caller.SendAsync("SetActiveChannel", nextChannel);
+
+                    await SendUserListToCaller(nextChannel);
+                    await SendChannelTopicInfo(nextChannel);
+                }
             }
 
             await SendChannelTopicInfo(channelName);
@@ -786,57 +1017,39 @@ namespace MyIRC.Web.Hubs
             var nick = Context.GetHttpContext()?.Request.Query["nick"].ToString();
 
             if (string.IsNullOrWhiteSpace(nick))
-            {
                 nick = "RSohbet";
-            }
 
             if (_onlineUserStore.NickExists(nick))
-            {
                 nick = nick + "_";
-            }
 
             var defaultChannels = await _channelRegistrationRepository.GetDefaultJoinChannelsAsync();
 
             if (!defaultChannels.Any())
-            {
                 defaultChannels = new List<string> { "#Sohbet" };
-            }
 
-            // 🔥 KRİTİK: default kanalları normalize et
             defaultChannels = defaultChannels
                 .Select(NormalizeChannelName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            if (defaultChannels.Contains("#Sohbet"))
+            {
+                defaultChannels = defaultChannels
+                    .OrderByDescending(x => x == "#Sohbet")
+                    .ToList();
+            }
+
+            var firstChannel = defaultChannels.First();
+
             var user = new OnlineUser
             {
                 ConnectionId = Context.ConnectionId,
                 Nick = nick,
-                CurrentChannel = defaultChannels.Contains("#Sohbet")
-                    ? "#Sohbet"
-                    : defaultChannels.First(),
-                Channels = defaultChannels
+                CurrentChannel = firstChannel,
+                Channels = new List<string>()
             };
 
-            foreach (var channel in user.Channels)
-            {
-                var registeredChannel = await _channelRegistrationRepository.GetByChannelAsync(channel);
-
-                var role = _onlineUserStore.GetUsersInChannel(channel).Any()
-                    ? ChannelRole.User
-                    : ChannelRole.Op;
-
-                user.ChannelRoles[channel] = registeredChannel != null
-                    ? ChannelRole.User
-                    : role;
-            }
-
             _onlineUserStore.Add(user);
-
-            foreach (var channel in user.Channels)
-            {
-                _onlineUserStore.AddUserToChannelIndex(user.ConnectionId, channel);
-            }
 
             var isRegistered = await _nickServ.IsNickRegisteredAsync(user.Nick);
 
@@ -860,35 +1073,27 @@ namespace MyIRC.Web.Hubs
             }
 
             await Clients.Caller.SendAsync("SetNick", user.Nick);
-            await Clients.Caller.SendAsync("SetActiveChannel", user.CurrentChannel);
 
-            foreach (var channel in user.Channels)
+            string? activeChannel = null;
+
+            foreach (var channel in defaultChannels)
             {
-                await Groups.AddToGroupAsync(Context.ConnectionId, channel);
+                var beforeJoinCount = user.Channels.Count;
 
-                await Clients.Caller.SendAsync("ChannelJoined", channel);
+                await JoinChannel(channel);
 
-                await SendUserListToCaller(channel);
+                if (activeChannel == null && user.Channels.Count > beforeJoinCount)
+                {
+                    activeChannel = channel;
+                    user.CurrentChannel = channel;
+                }
+            }
 
-                var role = user.ChannelRoles.ContainsKey(channel)
-                    ? (int)user.ChannelRoles[channel]
-                    : (int)ChannelRole.User;
-
-                await Clients.Group(channel).SendAsync(
-                    "ReceiveUserJoined",
-                    channel,
-                    user.Nick,
-                    role
-                );
-
-                await Clients.Group(channel).SendAsync(
-                    "ReceiveMessage",
-                    "Sistem",
-                    $"{user.Nick} → {channel} kanalına bağlandı.",
-                    channel
-                );
-
-                await SendChannelTopicInfo(channel);
+            if (activeChannel != null)
+            {
+                user.CurrentChannel = activeChannel;
+                await Clients.Caller.SendAsync("SetActiveChannel", activeChannel);
+                await SendChannelTopicInfo(activeChannel);
             }
 
             await base.OnConnectedAsync();
@@ -989,16 +1194,23 @@ namespace MyIRC.Web.Hubs
 
             var dbChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
 
-            if (dbChannel == null)
+            bool hasPermission;
+
+            if (dbChannel != null)
             {
-                await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", "Kanal kayıtlı değil.", channelName);
-                return;
+                hasPermission = user.UserAccountId != null &&
+                                dbChannel.FounderUserAccountId == user.UserAccountId.Value;
+            }
+            else
+            {
+                var role = user.ChannelRoles.ContainsKey(channelName)
+                    ? user.ChannelRoles[channelName]
+                    : ChannelRole.User;
+
+                hasPermission = role >= ChannelRole.Op;
             }
 
-            var isFounder = user.UserAccountId != null &&
-                            dbChannel.FounderUserAccountId == user.UserAccountId.Value;
-
-            if (!isFounder)
+            if (!hasPermission)
             {
                 await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", "Yetkin yok.", channelName);
                 return;
@@ -1037,72 +1249,59 @@ namespace MyIRC.Web.Hubs
 
                 if (action != '+' && action != '-')
                 {
-                    await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", "Mode + veya - ile başlamalı.", channelName);
+                    await Clients.Caller.SendAsync(
+                        "ReceiveMessage",
+                        "Sistem",
+                        "Mode + veya - ile başlamalı.",
+                        channelName
+                    );
                     return;
                 }
-
-                var currentRole = targetUser.ChannelRoles.ContainsKey(channelName)
-                    ? targetUser.ChannelRoles[channelName]
-                    : ChannelRole.User;
 
                 ChannelRole targetRole;
                 string roleName;
 
                 switch (mode)
                 {
-                    case 'q':
-                        targetRole = ChannelRole.Founder;
-                        roleName = "Founder";
-                        break;
-
-                    case 'y':
-                        targetRole = ChannelRole.Owner;
-                        roleName = "Owner";
-                        break;
-
-                    case 'a':
-                        targetRole = ChannelRole.Sop;
-                        roleName = "SOP";
-                        break;
-
-                    case 'o':
-                        targetRole = ChannelRole.Op;
-                        roleName = "OP";
-                        break;
-
-                    case 'z':
-                        targetRole = ChannelRole.Vip;
-                        roleName = "VIP";
-                        break;
-
-                    case 'h':
-                        targetRole = ChannelRole.HalfOp;
-                        roleName = "HalfOP";
-                        break;
-
-                    case 'v':
-                        targetRole = ChannelRole.Voice;
-                        roleName = "Voice";
-                        break;
-
+                    case 'q': targetRole = ChannelRole.Founder; roleName = "Founder"; break;
+                    case 'y': targetRole = ChannelRole.Owner; roleName = "Owner"; break;
+                    case 'a': targetRole = ChannelRole.Sop; roleName = "SOP"; break;
+                    case 'o': targetRole = ChannelRole.Op; roleName = "OP"; break;
+                    case 'z': targetRole = ChannelRole.Vip; roleName = "VIP"; break;
+                    case 'h': targetRole = ChannelRole.HalfOp; roleName = "HalfOP"; break;
+                    case 'v': targetRole = ChannelRole.Voice; roleName = "Voice"; break;
                     default:
-                        await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", $"Geçersiz kullanıcı mode: {mode}", channelName);
+                        await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", $"Geçersiz mode: {mode}", channelName);
                         return;
                 }
 
-                ChannelRole newRole = action == '+'
+                var currentRole = targetUser.ChannelRoles.ContainsKey(channelName)
+                    ? targetUser.ChannelRoles[channelName]
+                    : ChannelRole.User;
+
+                var newRole = action == '+'
                     ? targetRole
                     : ChannelRole.User;
 
                 if (action == '+' && currentRole == targetRole)
                 {
-                    await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", $"{targetUser.Nick} zaten {roleName}.", channelName);
+                    await Clients.Caller.SendAsync(
+                        "ReceiveMessage",
+                        "Sistem",
+                        $"{targetUser.Nick} zaten {roleName}.",
+                        channelName
+                    );
                     return;
                 }
 
                 if (action == '-' && currentRole != targetRole)
                 {
-                    await Clients.Caller.SendAsync("ReceiveMessage", "Sistem", $"{targetUser.Nick} üzerinde {roleName} yok.", channelName);
+                    await Clients.Caller.SendAsync(
+                        "ReceiveMessage",
+                        "Sistem",
+                        $"{targetUser.Nick} üzerinde {roleName} yok.",
+                        channelName
+                    );
                     return;
                 }
 
@@ -1125,11 +1324,72 @@ namespace MyIRC.Web.Hubs
                 return;
             }
 
-            var currentModes = dbChannel.Modes
+            var modeParts = modeText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var modeCommand = modeParts[0];
+
+            var modesText = dbChannel?.Modes ?? _onlineUserStore.GetChannelModes(channelName);
+
+            var currentModes = modesText
                 .Replace("+", "")
                 .ToHashSet();
 
-            var result = _channelModeService.SetMode(currentModes, modeText);
+            if (modeCommand == "+k")
+            {
+                if (modeParts.Length < 2)
+                {
+                    await Clients.Caller.SendAsync(
+                        "ReceiveMessage",
+                        "Sistem",
+                        $"Kullanım: /mode {channelName} +k şifre",
+                        channelName
+                    );
+                    return;
+                }
+
+                var newKey = modeParts[1];
+
+                if (dbChannel != null)
+                    dbChannel.ChannelKey = newKey;
+                else
+                    _onlineUserStore.SetChannelKey(channelName, newKey);
+            }
+
+            if (modeCommand == "-k")
+            {
+                if (dbChannel != null)
+                    dbChannel.ChannelKey = null;
+                else
+                    _onlineUserStore.RemoveChannelKey(channelName);
+            }
+
+            if (modeCommand == "+l")
+            {
+                if (modeParts.Length < 2 || !int.TryParse(modeParts[1], out var limit) || limit <= 0)
+                {
+                    await Clients.Caller.SendAsync(
+                        "ReceiveMessage",
+                        "Sistem",
+                        $"Kullanım: /mode {channelName} +l sayı",
+                        channelName
+                    );
+                    return;
+                }
+
+                if (dbChannel != null)
+                    dbChannel.ChannelLimit = limit;
+                else
+                    _onlineUserStore.SetChannelLimit(channelName, limit);
+            }
+
+            if (modeCommand == "-l")
+            {
+                if (dbChannel != null)
+                    dbChannel.ChannelLimit = null;
+                else
+                    _onlineUserStore.RemoveChannelLimit(channelName);
+            }
+
+            var result = _channelModeService.SetMode(currentModes, modeCommand);
 
             if (!result.Success)
             {
@@ -1137,14 +1397,24 @@ namespace MyIRC.Web.Hubs
                 return;
             }
 
-            dbChannel.Modes = result.ModesText;
+            if (dbChannel != null)
+            {
+                dbChannel.Modes = result.ModesText;
+                await _channelRegistrationRepository.UpdateAsync(dbChannel);
+            }
+            else
+            {
+                _onlineUserStore.SetChannelModes(channelName, result.ModesText);
+            }
 
-            await _channelRegistrationRepository.UpdateAsync(dbChannel);
+            var displayModeText = modeCommand == "+k"
+                ? "+k ******"
+                : modeText;
 
             await Clients.Group(channelName).SendAsync(
                 "ReceiveMessage",
                 "ChanServ",
-                $"{user.Nick} mode değiştirdi: {modeText} ({result.ModesText})",
+                $"{user.Nick} mode değiştirdi: {displayModeText} ({result.ModesText})",
                 channelName
             );
 
@@ -1155,7 +1425,7 @@ namespace MyIRC.Web.Hubs
                 channelName,
                 userCount,
                 result.ModesText,
-                dbChannel.Topic ?? "Sohbet Kanalına Hoşgeldiniz",
+                dbChannel?.Topic ?? "Sohbet Kanalına Hoşgeldiniz",
                 ""
             );
         }
@@ -1207,21 +1477,14 @@ namespace MyIRC.Web.Hubs
 
             var dbChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
 
-            if (dbChannel == null)
-            {
-                await Clients.Caller.SendAsync(
-                    "ReceiveMessage",
-                    "Sistem",
-                    "Kanal kayıtlı değil.",
-                    channelName
-                );
-                return;
-            }
+            var modes = (dbChannel?.Modes
+                ?? _onlineUserStore.GetChannelModes(channelName))
+                .Replace("+", "");
 
-            var modes = dbChannel.Modes?.Replace("+", "") ?? "";
-
-            var isFounder = user.UserAccountId != null &&
-                            dbChannel.FounderUserAccountId == user.UserAccountId;
+            var isFounder =
+                dbChannel != null &&
+                user.UserAccountId != null &&
+                dbChannel.FounderUserAccountId == user.UserAccountId;
 
             var role = user.ChannelRoles.ContainsKey(channelName)
                 ? user.ChannelRoles[channelName]
@@ -1241,9 +1504,15 @@ namespace MyIRC.Web.Hubs
                 return;
             }
 
-            dbChannel.Topic = topic;
-
-            await _channelRegistrationRepository.UpdateAsync(dbChannel);
+            if (dbChannel != null)
+            {
+                dbChannel.Topic = topic;
+                await _channelRegistrationRepository.UpdateAsync(dbChannel);
+            }
+            else
+            {
+                _onlineUserStore.SetChannelTopic(channelName, topic);
+            }
 
             await Clients.Group(channelName).SendAsync(
                 "ReceiveMessage",
@@ -1265,6 +1534,136 @@ namespace MyIRC.Web.Hubs
                 return;
 
             await SendChannelTopicInfo(channelName);
+        }
+        public async Task InviteUser(string targetNick, string channelName)
+        {
+            var user = _onlineUserStore.GetByConnectionId(Context.ConnectionId);
+            if (user == null) return;
+
+            channelName = NormalizeChannelName(channelName);
+
+            // 🔥 Kanalda mı?
+            if (!user.Channels.Contains(channelName))
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    "Bu kanalda değilsin.",
+                    user.CurrentChannel
+                );
+                return;
+            }
+
+            // 🔥 Yetki kontrol (OP ve üzeri)
+            var role = user.ChannelRoles.ContainsKey(channelName)
+                ? user.ChannelRoles[channelName]
+                : ChannelRole.User;
+
+            if (role < ChannelRole.Op)
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    "Invite için yetkin yok.",
+                    channelName
+                );
+                return;
+            }
+
+            // 🔥 Hedef kullanıcı
+            var target = _onlineUserStore.GetByNick(targetNick);
+
+            if (target == null)
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    $"{targetNick} bulunamadı.",
+                    channelName
+                );
+                return;
+            }
+
+            // 🔥 Zaten kanalda mı?
+            if (target.Channels.Contains(channelName))
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    $"{target.Nick} zaten kanalda.",
+                    channelName
+                );
+                return;
+            }
+
+            // 🔥 INVITE EKLE
+            _onlineUserStore.AddInvite(channelName, target.Nick);
+
+            // 🔥 Davet eden kişiye mesaj
+            await Clients.Caller.SendAsync(
+                "ReceiveMessage",
+                "Sistem",
+                $"{target.Nick} → {channelName} kanalına davet edildi.",
+                channelName
+            );
+
+            // 🔥 Hedef kullanıcıya bildirim
+            await Clients.Client(target.ConnectionId).SendAsync(
+                "ReceiveInviteNotice",
+                user.Nick,
+                channelName
+            );
+        }
+        private async Task SendSystemAndStatus(string message, string? currentChannel)
+        {
+            // 🔥 Mevcut pencereye
+            if (!string.IsNullOrWhiteSpace(currentChannel))
+            {
+                await Clients.Caller.SendAsync(
+                    "ReceiveMessage",
+                    "Sistem",
+                    message,
+                    currentChannel
+                );
+            }
+
+            // 🔥 Status penceresine
+            await Clients.Caller.SendAsync(
+                "ReceiveMessage",
+                "Status",
+                message,
+                "Status"
+            );
+        }
+        private async Task AnnounceFounderOnlineIfNeeded(OnlineUser user, string channelName)
+        {
+            if (user.UserAccountId == null)
+                return;
+
+            channelName = NormalizeChannelName(channelName);
+
+            if (!user.Channels.Contains(channelName))
+                return;
+
+            var registeredChannel = await _channelRegistrationRepository.GetByChannelAsync(channelName);
+
+            if (registeredChannel == null)
+                return;
+
+            if (registeredChannel.FounderUserAccountId != user.UserAccountId.Value)
+                return;
+
+            if (user.FounderOnlineAnnouncedChannels.Contains(channelName))
+                return;
+
+            user.FounderOnlineAnnouncedChannels.Add(channelName);
+
+            await Clients.Group(channelName).SendAsync(
+                "ReceiveMessage",
+                "ChanServ",
+                $"{channelName} kanalı founder {user.Nick} şu anda çevrimiçi.",
+                channelName
+            );
         }
     }
 }
