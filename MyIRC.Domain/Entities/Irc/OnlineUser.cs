@@ -1,4 +1,4 @@
-﻿using MyIRC.Domain.Enums;
+using MyIRC.Domain.Enums;
 
 namespace MyIRC.Domain.Entities.Irc
 {
@@ -14,6 +14,9 @@ namespace MyIRC.Domain.Entities.Irc
 
         // Kanal bazlı rol bilgisi
         public Dictionary<string, ChannelRole> ChannelRoles { get; set; } = new();
+
+        // 🔥 Bu bağlantıda founder bildirimi yapılan kanallar
+        public HashSet<string> FounderOnlineAnnouncedChannels { get; set; } = new();
 
         // NickServ identify durumu
         public bool IsIdentified { get; set; } = false;
